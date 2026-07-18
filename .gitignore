@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+*.DotSettings.user
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+coverage/
+*.lcov
+
+# Electron
+release/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+!*.db.example
+
+# Secrets
+*.pem
+*.key
+*.cert
+appsettings.Development.json

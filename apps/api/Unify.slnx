@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Unify.API/Unify.API.csproj" />
+  <Project Path="Unify.Core/Unify.Core.csproj" />
+  <Project Path="Unify.Infrastructure/Unify.Infrastructure.csproj" />
+  <Project Path="Unify.Shared/Unify.Shared.csproj" />
+</Solution>

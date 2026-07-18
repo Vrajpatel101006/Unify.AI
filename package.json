@@ -1,0 +1,37 @@
+{
+  "name": "unify-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Unify.AI — AI-powered Developer Workspace Platform",
+  "author": "Unify.AI",
+  "license": "PROPRIETARY",
+  "workspaces": [
+    "apps/web",
+    "apps/desktop",
+    "packages/kernel",
+    "packages/platform/*",
+    "packages/ui",
+    "packages/sdk",
+    "packages/shared",
+    "packages/toolkit"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "preview": "npm run preview --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/web",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "desktop": "npm run dev --workspace=apps/desktop",
+    "clean": "rimraf node_modules apps/*/node_modules packages/*/node_modules packages/platform/*/node_modules"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "allowScripts": {
+    "electron@36.9.5": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.28.1": true
+  }
+}
