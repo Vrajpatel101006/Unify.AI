@@ -1,4 +1,4 @@
-import { Terminal, Database, Send, BookOpen, Settings, Moon, Sun } from 'lucide-react';
+import { Terminal, Database, Send, BookOpen, Settings, Moon, Sun, Network, Cpu, Globe } from 'lucide-react';
 import { useLayoutStore } from '../stores/layoutStore';
 
 export function ActivityBar() {
@@ -6,8 +6,11 @@ export function ActivityBar() {
 
   const activities = [
     { id: 'welcome', icon: Terminal, label: 'Welcome', tabTitle: 'Welcome', tabType: 'welcome' },
+    { id: 'repo-intel', icon: Network, label: 'Repository Intelligence', tabTitle: 'Repo Intel', tabType: 'repo-intel' },
+    { id: 'code-intel', icon: Cpu, label: 'Code Intelligence', tabTitle: 'Code Intel', tabType: 'code-intel' },
     { id: 'prompt', icon: Send, label: 'Prompt Workspace', tabTitle: 'Prompts', tabType: 'prompt' },
     { id: 'database', icon: Database, label: 'Database Workspace', tabTitle: 'Database', tabType: 'database' },
+    { id: 'api', icon: Globe, label: 'API Workspace', tabTitle: 'API Workspace', tabType: 'api' },
     { id: 'docs', icon: BookOpen, label: 'Documentation', tabTitle: 'Docs', tabType: 'docs' },
   ];
 
