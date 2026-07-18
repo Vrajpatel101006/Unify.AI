@@ -8,3 +8,6 @@ export type {
   ToolDefinition, ToolParameter, ToolCall, ToolResult,
   ValidationResult,
 } from './types';
+export { AIRouter } from './AIRouter';
+export { PromptEngine } from './PromptEngine';
+export { ToolCallingEngine } from './ToolCallingEngine';

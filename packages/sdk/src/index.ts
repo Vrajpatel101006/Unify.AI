@@ -1,7 +1,9 @@
-/**
- * @unify/sdk — Plugin SDK for Unify.AI.
- * Third-party developers use this to build plugins.
- */
-
-// Plugin types will be defined in Phase 5
-export {};
+export type {
+  IPlugin,
+  IPluginHost,
+  PluginManifest,
+  PluginContext,
+  PluginDependency,
+  PluginCategory,
+} from './types';
+export { PluginHost } from './PluginHost';
