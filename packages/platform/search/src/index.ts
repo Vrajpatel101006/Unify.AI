@@ -3,3 +3,4 @@ export type {
   SearchCategory, SearchFilter, SearchResult, SearchQuery, SearchResults,
   IndexDocument, IndexSearchOptions, IndexSearchResult, IndexStats,
 } from './types';
+export { SearchEngine } from './SearchEngine';
