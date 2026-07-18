@@ -1,12 +1,18 @@
 import { AppShell } from './layouts/AppShell';
 import { useLayoutStore } from './stores/layoutStore';
 import { Terminal, Cpu, Database, Settings2 } from 'lucide-react';
+import { PromptWorkspace } from './features/PromptWorkspace';
+import { AIProviderWorkspace } from './features/AIProviderWorkspace';
 
 export function App() {
   const { activeTabId } = useLayoutStore();
 
   const renderActiveTab = () => {
     switch (activeTabId) {
+      case 'prompt':
+        return <PromptWorkspace />;
+      case 'settings':
+        return <AIProviderWorkspace />;
       case 'welcome':
         return (
           <div className="w-full flex flex-col p-8 max-w-3xl mx-auto gap-6 select-text">

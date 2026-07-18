@@ -2,14 +2,19 @@ import { Terminal, Database, Send, BookOpen, Settings, Moon, Sun } from 'lucide-
 import { useLayoutStore } from '../stores/layoutStore';
 
 export function ActivityBar() {
-  const { activeActivity, setActiveActivity, theme, toggleTheme } = useLayoutStore();
+  const { activeActivity, setActiveActivity, theme, toggleTheme, addTab } = useLayoutStore();
 
   const activities = [
-    { id: 'welcome', icon: Terminal, label: 'Welcome' },
-    { id: 'prompt', icon: Send, label: 'Prompt Workspace' },
-    { id: 'database', icon: Database, label: 'Database Workspace' },
-    { id: 'docs', icon: BookOpen, label: 'Documentation' },
+    { id: 'welcome', icon: Terminal, label: 'Welcome', tabTitle: 'Welcome', tabType: 'welcome' },
+    { id: 'prompt', icon: Send, label: 'Prompt Workspace', tabTitle: 'Prompts', tabType: 'prompt' },
+    { id: 'database', icon: Database, label: 'Database Workspace', tabTitle: 'Database', tabType: 'database' },
+    { id: 'docs', icon: BookOpen, label: 'Documentation', tabTitle: 'Docs', tabType: 'docs' },
   ];
+
+  const handleActivityClick = (id: string, tabTitle: string, tabType: string) => {
+    setActiveActivity(id);
+    addTab({ id, title: tabTitle, type: tabType });
+  };
 
   return (
     <div
@@ -25,7 +30,7 @@ export function ActivityBar() {
           return (
             <button
               key={act.id}
-              onClick={() => setActiveActivity(act.id)}
+              onClick={() => handleActivityClick(act.id, act.tabTitle, act.tabType)}
               title={act.label}
               className={`group relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg transition-all ${
                 isActive
@@ -54,7 +59,10 @@ export function ActivityBar() {
         </button>
 
         <button
-          onClick={() => setActiveActivity('settings')}
+          onClick={() => {
+            setActiveActivity('settings');
+            addTab({ id: 'settings', title: 'AI Providers', type: 'settings' });
+          }}
           title="Settings"
           className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg transition-all ${
             activeActivity === 'settings'
