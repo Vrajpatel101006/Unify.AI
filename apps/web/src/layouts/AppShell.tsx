@@ -22,12 +22,12 @@ export function AppShell({ children }: AppShellProps) {
           <Sidebar />
 
           {/* Editor/Workspace Content Window */}
-          <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+          <div className="w-full flex flex-1 flex-col overflow-hidden min-w-0">
             {/* Tab Strip / Universal Actions Bar */}
             <TopBar />
 
             {/* Main view content (tab components) */}
-            <div className="flex-1 overflow-y-auto bg-[var(--color-bg-primary)] relative">
+            <div className="w-full flex-1 overflow-y-auto bg-[var(--color-bg-primary)] relative">
               {children}
             </div>
           </div>

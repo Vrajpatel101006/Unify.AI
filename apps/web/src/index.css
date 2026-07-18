@@ -41,13 +41,14 @@
   --color-status-info: #60a5fa;
 
   /* Spacing (4px grid) */
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 12px;
-  --spacing-lg: 16px;
-  --spacing-xl: 24px;
-  --spacing-2xl: 32px;
-  --spacing-3xl: 48px;
+  /* Prefix custom spacing tokens to avoid Tailwind's --spacing-* namespace. */
+  --unify-space-xs: 4px;
+  --unify-space-sm: 8px;
+  --unify-space-md: 12px;
+  --unify-space-lg: 16px;
+  --unify-space-xl: 24px;
+  --unify-space-2xl: 32px;
+  --unify-space-3xl: 48px;
 
   /* Sizes */
   --size-activity-bar: 48px;
