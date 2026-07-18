@@ -1,2 +1,3 @@
 export { SettingsScope } from './types';
 export type { ISettingsManager, SettingsSchema, SettingType } from './types';
+export { SettingsManager } from './SettingsManager';
