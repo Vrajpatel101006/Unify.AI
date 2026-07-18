@@ -3,6 +3,7 @@ import { useLayoutStore } from './stores/layoutStore';
 import { Terminal, Cpu, Database, Settings2 } from 'lucide-react';
 import { PromptWorkspace } from './features/PromptWorkspace';
 import { AIProviderWorkspace } from './features/AIProviderWorkspace';
+import { ProjectWorkspace } from './features/ProjectWorkspace';
 
 export function App() {
   const { activeTabId } = useLayoutStore();
@@ -13,6 +14,8 @@ export function App() {
         return <PromptWorkspace />;
       case 'settings':
         return <AIProviderWorkspace />;
+      case 'database':
+        return <ProjectWorkspace />;
       case 'welcome':
         return (
           <div className="w-full flex flex-col p-8 max-w-3xl mx-auto gap-6 select-text">
