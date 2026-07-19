@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Sparkles, ChevronDown, ChevronRight, Activity } from 'lucide-react';
-import { useFeatureStore } from '../stores/featureStores';
+import { Send, User, Bot, Sparkles, Activity } from 'lucide-react';
 
 export function AIChatWorkspace() {
   const [messages, setMessages] = useState([

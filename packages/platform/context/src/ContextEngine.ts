@@ -37,14 +37,19 @@ function createDefaultContext(): WorkspaceContext {
   };
 }
 
+import type { ICacheManager } from '@unify/platform-cache';
+import { createHash } from 'crypto';
+
 export class ContextEngine implements IContextEngine {
   private _context: WorkspaceContext;
   private readonly _listeners = new Map<ContextKey, Set<(value: unknown) => void>>();
+  private readonly _providers: IContextProvider<any>[] = [];
 
   constructor(
     private indexer?: IRepositoryIndexer,
     private git?: IGitService,
-    private memory?: IWorkspaceMemory
+    private memory?: IWorkspaceMemory,
+    private cacheManager?: ICacheManager
   ) {
     this._context = createDefaultContext();
   }
@@ -106,13 +111,31 @@ export class ContextEngine implements IContextEngine {
     return !!this._context[trimmed as ContextKey];
   }
 
-  private readonly _providers: IContextProvider<any>[] = [];
-
   public registerProvider(provider: IContextProvider<any>): void {
     this._providers.push(provider);
   }
 
   public async buildWorkspaceContext(): Promise<WorkspaceContextModel> {
+    let cacheKey = '';
+    let cache;
+    if (this.cacheManager) {
+      // Build a cache key representing the exact state
+      const stateStr = JSON.stringify({
+        project: this._context.currentProject?.id,
+        file: this._context.currentFile?.path,
+        selection: this._context.selection?.text,
+        git: this._context.gitStatus,
+        branch: this._context.gitBranch
+      });
+      cacheKey = createHash('md5').update(stateStr).digest('hex');
+      
+      cache = this.cacheManager.getMemoryCache('workspaceContext');
+      const cached = await cache.get<WorkspaceContextModel>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
     const model: WorkspaceContextModel = {};
     
     // Core built-in fields
@@ -137,6 +160,10 @@ export class ContextEngine implements IContextEngine {
       } catch (err) {
         console.error(`[ContextEngine] Provider ${provider.name} failed:`, err);
       }
+    }
+
+    if (cache && cacheKey) {
+      await cache.set(cacheKey, model, 60000); // 1 minute TTL
     }
 
     return model;
