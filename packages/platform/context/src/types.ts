@@ -128,6 +128,26 @@ export interface IContextEngine {
 
   evaluate(expression: string): boolean;
 
-  /** Build a comprehensive markdown context prompt for AI routing */
-  buildContextPrompt(): Promise<string>;
+  /** Build a structured workspace context model for AI routing */
+  buildWorkspaceContext(): Promise<WorkspaceContextModel>;
+  
+  /** Register a context provider */
+  registerProvider(provider: IContextProvider<any>): void;
+}
+
+export interface WorkspaceContextModel {
+  project?: any;
+  git?: any;
+  repository?: any;
+  currentFile?: any;
+  selection?: any;
+  recentActivity?: any[];
+  databases?: any[];
+  apis?: any[];
+  prompts?: any[];
+}
+
+export interface IContextProvider<T = any> {
+  name: string;
+  provideContext(context: WorkspaceContext): Promise<T | null>;
 }

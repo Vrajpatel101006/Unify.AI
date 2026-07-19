@@ -10,4 +10,5 @@ export type {
 } from './types';
 export { AIRouter } from './AIRouter';
 export { PromptEngine } from './PromptEngine';
+export { PromptBuilder } from './PromptBuilder';
 export { ToolCallingEngine } from './ToolCallingEngine';

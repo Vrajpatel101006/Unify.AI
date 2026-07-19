@@ -8,6 +8,7 @@ import { CodeIntelligence } from './features/CodeIntelligence';
 import { DatabaseWorkspace } from './features/DatabaseWorkspace';
 import { ApiWorkspace } from './features/ApiWorkspace';
 import { DocumentationWorkspace } from './features/DocumentationWorkspace';
+import { AIChatWorkspace } from './features/AIChatWorkspace';
 
 export function App() {
   const { activeTabId } = useLayoutStore();
@@ -16,6 +17,8 @@ export function App() {
     switch (activeTabId) {
       case 'prompt':
         return <PromptWorkspace />;
+      case 'ai-chat':
+        return <AIChatWorkspace />;
       case 'settings':
         return <AIProviderWorkspace />;
       case 'database':

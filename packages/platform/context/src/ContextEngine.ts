@@ -3,7 +3,7 @@
  */
 
 import type { Disposable } from '@unify/kernel';
-import type { ContextKey, IContextEngine, SessionInfo, WorkspaceContext } from './types';
+import type { ContextKey, IContextEngine, SessionInfo, WorkspaceContext, WorkspaceContextModel, IContextProvider } from './types';
 import { generateId } from '@unify/shared';
 import type { IRepositoryIndexer } from '@unify/platform-indexing';
 import type { IGitService } from '@unify/platform-git';
@@ -106,58 +106,39 @@ export class ContextEngine implements IContextEngine {
     return !!this._context[trimmed as ContextKey];
   }
 
-  public async buildContextPrompt(): Promise<string> {
-    let prompt = `# AI Workspace Context\n\n`;
+  private readonly _providers: IContextProvider<any>[] = [];
 
-    // 1. Current File / Editor State
+  public registerProvider(provider: IContextProvider<any>): void {
+    this._providers.push(provider);
+  }
+
+  public async buildWorkspaceContext(): Promise<WorkspaceContextModel> {
+    const model: WorkspaceContextModel = {};
+    
+    // Core built-in fields
+    if (this._context.currentProject) {
+      model.project = this._context.currentProject;
+    }
     if (this._context.currentFile) {
-      prompt += `## Active File\n- Path: ${this._context.currentFile.path}\n- Language: ${this._context.currentFile.language}\n`;
-      if (this._context.selection && this._context.selection.text) {
-        prompt += `- Selected Text:\n\`\`\`${this._context.currentFile.language}\n${this._context.selection.text}\n\`\`\`\n`;
-      }
-      prompt += `\n`;
+      model.currentFile = this._context.currentFile;
+    }
+    if (this._context.selection) {
+      model.selection = this._context.selection;
     }
 
-    // 2. Git State
-    if (this.git && this._context.currentWorkspace) {
-      const branch = await this.git.getCurrentBranch(this._context.currentWorkspace);
-      const status = await this.git.getStatus(this._context.currentWorkspace);
-      if (branch) {
-        prompt += `## Git State\n- Branch: ${branch}\n`;
-        if (status) {
-          prompt += `- Clean: ${status.isClean}\n`;
-          if (status.modifiedFiles.length > 0) prompt += `- Modified: ${status.modifiedFiles.join(', ')}\n`;
+    // Call all registered providers
+    for (const provider of this._providers) {
+      try {
+        const data = await provider.provideContext(this._context);
+        if (data) {
+          // Merge provider data into model based on provider name
+          (model as any)[provider.name] = data;
         }
-        prompt += `\n`;
+      } catch (err) {
+        console.error(`[ContextEngine] Provider ${provider.name} failed:`, err);
       }
     }
 
-    // 3. Repository Index
-    if (this.indexer && this._context.currentWorkspace) {
-      const index = this.indexer.getIndex(this._context.currentWorkspace);
-      if (index) {
-        prompt += `## Repository Architecture\n`;
-        if (index.frameworks && index.frameworks.length > 0) {
-          prompt += `Frameworks detected: ${index.frameworks.map(f => f.name).join(', ')}\n`;
-        }
-        if (index.architecture && index.architecture.nodes.length > 0) {
-          prompt += `Key Symbols:\n`;
-          for (const node of index.architecture.nodes.slice(0, 10)) {
-            prompt += `- ${node.type}: ${node.name}\n`;
-          }
-        }
-        prompt += `\n`;
-      }
-    }
-
-    // 4. Project Memory
-    if (this.memory) {
-      const recentFiles = await this.memory.getRecent('recentFiles', 3);
-      if (recentFiles.length > 0) {
-        prompt += `## Recent Activity\n- Recently opened files: ${recentFiles.join(', ')}\n\n`;
-      }
-    }
-
-    return prompt;
+    return model;
   }
 }
