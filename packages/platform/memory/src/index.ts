@@ -1,1 +1,3 @@
-export type { IWorkspaceMemory, WorkspaceMemoryState } from './types';
+export * from './types';
+export { ProjectMemory } from './ProjectMemory';
+export { registerMemoryServices } from './module';

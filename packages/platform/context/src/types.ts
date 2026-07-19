@@ -126,6 +126,8 @@ export interface IContextEngine {
   onChange<K extends ContextKey>(key: K, handler: (value: WorkspaceContext[K]) => void): Disposable;
   getSnapshot(): WorkspaceContext;
 
-  /** Evaluate a context expression (for command "when" clauses). */
   evaluate(expression: string): boolean;
+
+  /** Build a comprehensive markdown context prompt for AI routing */
+  buildContextPrompt(): Promise<string>;
 }

@@ -2,7 +2,8 @@
  * @unify/platform-indexing — Repository indexing, dependency graph, architecture graph.
  */
 
-import type { Disposable } from '@unify/kernel';
+import type { Disposable, ServiceToken } from '@unify/kernel';
+import { createServiceToken } from '@unify/kernel/src/types';
 
 export interface FileEntry {
   path: string;
@@ -44,12 +45,27 @@ export interface LanguageStats {
   };
 }
 
+export interface FrameworkMetadata {
+  name: string;
+  version?: string;
+  ecosystem: 'npm' | 'pip' | 'cargo' | 'go' | 'composer' | 'nuget' | 'unknown';
+}
+
+export interface IRepositoryScanner {
+  scan(rootPath: string): Promise<{
+    frameworks: FrameworkMetadata[];
+    languages: LanguageStats;
+    dependencies: DependencyGraph;
+  }>;
+}
+
 export interface RepositoryIndex {
   rootPath: string;
   files: FileEntry[];
   dependencies: DependencyGraph;
   architecture: ArchitectureGraph;
   languages: LanguageStats;
+  frameworks: FrameworkMetadata[];
   lastIndexed: number;
 }
 
@@ -59,3 +75,7 @@ export interface IRepositoryIndexer {
   invalidate(path: string): void;
   onIndexChange(handler: (index: RepositoryIndex) => void): Disposable;
 }
+
+export const RepositoryScannerToken: ServiceToken<IRepositoryScanner> = createServiceToken<IRepositoryScanner>('indexing.scanner', 'Repository Scanner');
+export const RepositoryIndexerToken: ServiceToken<IRepositoryIndexer> = createServiceToken<IRepositoryIndexer>('indexing.indexer', 'Repository Indexer');
+

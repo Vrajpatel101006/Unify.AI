@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@unify/platform-context",
   "version": "0.1.0",
   "private": true,
@@ -12,6 +12,9 @@
   },
   "dependencies": {
     "@unify/kernel": "*",
-    "@unify/shared": "*"
+    "@unify/shared": "*",
+    "@unify/platform-indexing": "*",
+    "@unify/platform-git": "*",
+    "@unify/platform-memory": "*"
   }
 }

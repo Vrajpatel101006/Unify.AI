@@ -20,3 +20,8 @@ export interface IWorkspaceMemory {
   getRecent(category: keyof WorkspaceMemoryState, limit?: number): Promise<string[]>;
   clear(): Promise<void>;
 }
+
+import type { ServiceToken } from '@unify/kernel';
+import { createServiceToken } from '@unify/kernel/src/types';
+
+export const WorkspaceMemoryToken: ServiceToken<IWorkspaceMemory> = createServiceToken<IWorkspaceMemory>('memory.workspace', 'Workspace Memory');
