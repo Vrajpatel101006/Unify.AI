@@ -45,12 +45,21 @@ export class ContextEngine implements IContextEngine {
   private readonly _listeners = new Map<ContextKey, Set<(value: unknown) => void>>();
   private readonly _providers: IContextProvider<any>[] = [];
 
+  private indexer?: IRepositoryIndexer;
+  private git?: IGitService;
+  private memory?: IWorkspaceMemory;
+  private cacheManager?: ICacheManager;
+
   constructor(
-    private indexer?: IRepositoryIndexer,
-    private git?: IGitService,
-    private memory?: IWorkspaceMemory,
-    private cacheManager?: ICacheManager
+    indexer?: IRepositoryIndexer,
+    git?: IGitService,
+    memory?: IWorkspaceMemory,
+    cacheManager?: ICacheManager
   ) {
+    this.indexer = indexer;
+    this.git = git;
+    this.memory = memory;
+    this.cacheManager = cacheManager;
     this._context = createDefaultContext();
   }
 

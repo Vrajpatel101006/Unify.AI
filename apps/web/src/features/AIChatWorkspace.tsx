@@ -1,16 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Sparkles, Activity } from 'lucide-react';
+import { Send, User, Bot, Sparkles, Activity, Bookmark } from 'lucide-react';
+import { useAIChatStore } from '../stores/aiChatStore';
 
 export function AIChatWorkspace() {
-  const [messages, setMessages] = useState([
-    { id: '1', role: 'assistant', text: 'Hello! I am your AI assistant, powered by Unify.AI. I have real-time access to your repository architecture, git state, and project memory. How can I help you today?' }
-  ]);
+  const { messages, isTyping, contextUsed, executeExplainCode, saveToMemory } = useAIChatStore();
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [showContextView, setShowContextView] = useState(true);
-  
-  // Dummy context info for the UI (this would come from ContextEngine & PromptBuilder via stores)
-  const [currentContextText, setCurrentContextText] = useState('Fetching live context...');
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -19,35 +14,12 @@ export function AIChatWorkspace() {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  useEffect(() => {
-    // Mock fetching context on mount
-    setTimeout(() => {
-      setCurrentContextText(
-        `# AI Workspace Context\n\n## Repository Architecture\nFrameworks detected: React, Vite, Tailwind\nKey Symbols:\n- class: GitService\n- interface: WorkspaceContextModel\n\n## Git State\n- Branch: main\n- Clean: true\n\n## Recent Activity\n- Recently opened files: AIChatWorkspace.tsx, App.tsx`
-      );
-    }, 1000);
-  }, []);
-
   const handleSend = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping) return;
     
-    const newMsg = { id: Date.now().toString(), role: 'user', text: input };
-    setMessages(prev => [...prev, newMsg]);
+    const question = input;
     setInput('');
-    setIsTyping(true);
-
-    // Mock AI response
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev, 
-        { 
-          id: (Date.now() + 1).toString(), 
-          role: 'assistant', 
-          text: `Based on your Workspace Context, I can see you are on the \`main\` branch and looking at \`AIChatWorkspace.tsx\`. This project uses React, Vite, and Tailwind.\n\nTo answer your question: "${newMsg.text}"... this is a dummy response. I am ready to be hooked up to the real @unify/platform-ai router!` 
-        }
-      ]);
-      setIsTyping(false);
-    }, 1500);
+    executeExplainCode(question);
   };
 
   return (
@@ -59,26 +31,33 @@ export function AIChatWorkspace() {
         <div className="border-b border-[var(--color-border-default)] p-4 shrink-0 flex justify-between items-center bg-[var(--color-bg-secondary)]">
           <h2 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2">
             <Sparkles size={16} className="text-[var(--color-accent-primary)]" />
-            AI Chat Workspace
+            AI Workspace (Explain Code Slice)
           </h2>
           <button 
             onClick={() => setShowContextView(!showContextView)}
-            className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center gap-1 bg-[var(--color-bg-primary)] border border-[var(--color-border-default)] px-2 py-1 rounded"
+            className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] flex items-center gap-1 bg-[var(--color-bg-primary)] border border-[var(--color-border-default)] px-2 py-1 rounded cursor-pointer"
           >
             <Activity size={12} />
-            {showContextView ? 'Hide Context Window' : 'Show Context Window'}
+            {showContextView ? 'Hide Context Inspector' : 'Show Context Inspector'}
           </button>
         </div>
 
         {/* Chat History */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''}`}>
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''}`}>
               <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-[var(--color-accent-primary)] text-white' : 'bg-[var(--color-bg-tertiary)] border border-[var(--color-border-default)] text-[var(--color-text-primary)]'}`}>
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
-              <div className={`p-3 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-[var(--color-accent-primary)] text-white' : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-[var(--color-text-primary)]'}`}>
-                {msg.text}
+              <div className="flex flex-col gap-1">
+                <div className={`p-3 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-[var(--color-accent-primary)] text-white' : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-[var(--color-text-primary)]'}`}>
+                  {msg.content}
+                </div>
+                {msg.role === 'assistant' && msg.toolCallId && (
+                  <button onClick={() => saveToMemory(msg.toolCallId!)} className="self-start text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)] flex items-center gap-1 mt-1 cursor-pointer transition-colors">
+                    <Bookmark size={10} /> Save to Project Memory
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -109,7 +88,7 @@ export function AIChatWorkspace() {
                   handleSend();
                 }
               }}
-              placeholder="Ask anything about this project..."
+              placeholder="Ask me to explain code or concepts in this repository..."
               className="w-full bg-[var(--color-bg-primary)] border border-[var(--color-border-default)] rounded-xl py-3 pl-4 pr-12 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)] resize-none h-14"
             />
             <button
@@ -121,7 +100,7 @@ export function AIChatWorkspace() {
             </button>
           </div>
           <div className="text-[10px] text-[var(--color-text-muted)] text-center mt-2">
-            AI can make mistakes. Verify critical code and data.
+            AI is connected directly to AITaskEngine.
           </div>
         </div>
       </div>
@@ -132,15 +111,14 @@ export function AIChatWorkspace() {
           <div className="p-3 border-b border-[var(--color-border-default)] flex items-center gap-2">
             <Activity size={14} className="text-[var(--color-text-secondary)]" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
-              Context Used For Next Request
+              Context Inspector
             </h3>
           </div>
           <div className="flex-1 overflow-y-auto p-4 text-[11px] font-mono whitespace-pre-wrap leading-relaxed text-[var(--color-text-muted)]">
-            {currentContextText}
+            {contextUsed}
           </div>
           <div className="p-3 border-t border-[var(--color-border-default)] bg-[var(--color-bg-tertiary)] text-[10px] text-[var(--color-text-secondary)] flex justify-between">
-            <span>Powered by ContextEngine</span>
-            <span className="text-[var(--color-status-success)]">~400 tokens</span>
+            <span>Powered by ContextBuilder & PromptBuilder</span>
           </div>
         </div>
       )}

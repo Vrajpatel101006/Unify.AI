@@ -6,9 +6,11 @@ export type {
   TokenUsage, CostEstimate,
   PromptTemplate, PromptVariable, ConversationMemory,
   ToolDefinition, ToolParameter, ToolCall, ToolResult,
-  ValidationResult,
+  ValidationResult
 } from './types';
 export { AIRouter } from './AIRouter';
 export { PromptEngine } from './PromptEngine';
 export { PromptBuilder } from './PromptBuilder';
 export { ToolCallingEngine } from './ToolCallingEngine';
+export { AITaskEngine } from './AITaskEngine';
+export { MockAIProvider } from './MockAIProvider';

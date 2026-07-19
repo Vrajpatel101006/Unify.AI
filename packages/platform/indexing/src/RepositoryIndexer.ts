@@ -1,17 +1,23 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { IRepositoryIndexer, RepositoryIndex, IRepositoryScanner, FileEntry } from './types';
+import type { IRepositoryIndexer, RepositoryIndex, IRepositoryScanner, FileEntry } from './types';
+import type { Disposable } from '@unify/kernel';
 import { SymbolExtractor } from './SymbolExtractor';
-import { Disposable } from '@unify/kernel';
 
 export class RepositoryIndexer implements IRepositoryIndexer {
   private indexCache = new Map<string, RepositoryIndex>();
   private handlers: Array<(index: RepositoryIndex) => void> = [];
   
+  private scanner: IRepositoryScanner;
+  private extractor: SymbolExtractor;
+
   constructor(
-    private scanner: IRepositoryScanner,
-    private extractor: SymbolExtractor
-  ) {}
+    scanner: IRepositoryScanner,
+    extractor: SymbolExtractor
+  ) {
+    this.scanner = scanner;
+    this.extractor = extractor;
+  }
 
   public async indexRepository(rootPath: string): Promise<RepositoryIndex> {
     const scanResult = await this.scanner.scan(rootPath);

@@ -120,6 +120,19 @@ export interface AITask {
   preferredProvider?: string;
   context?: Partial<WorkspaceContext>;
   metadata?: Record<string, unknown>;
+  templateId?: string; // which prompt template to use
+  variables?: Record<string, unknown>; // variables for the template
+  userMessage?: string; // direct user message if not using a template
+}
+
+export interface AIExecutionResult {
+  response: AIResponse;
+  contextUsed?: string; // The compiled markdown context that was sent
+  promptUsed?: string;  // The fully compiled prompt
+}
+
+export interface IAITaskEngine {
+  executeTask(task: AITask): Promise<AIExecutionResult>;
 }
 
 // ---------------------------------------------------------------------------

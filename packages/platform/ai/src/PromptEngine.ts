@@ -9,6 +9,30 @@ import type { IPromptEngine, PromptTemplate } from './types';
 export class PromptEngine implements IPromptEngine {
   private readonly _templates = new Map<string, PromptTemplate>();
 
+  constructor() {
+    this.registerTemplate({
+      id: 'explain-code',
+      name: 'Explain Code',
+      category: 'chat',
+      userPromptTemplate: 'Please explain the following code or concept in the context of our repository:\n\n{{question}}',
+      variables: [
+        { name: 'question', description: 'The question or code to explain', required: true }
+      ],
+      version: '1.0.0'
+    });
+    
+    this.registerTemplate({
+      id: 'generate-code',
+      name: 'Generate Code',
+      category: 'code-generation',
+      userPromptTemplate: 'Please write code to fulfill the following request, strictly adhering to the project architecture:\n\n{{prompt}}',
+      variables: [
+        { name: 'prompt', description: 'The generation prompt', required: true }
+      ],
+      version: '1.0.0'
+    });
+  }
+
   registerTemplate(template: PromptTemplate): void {
     this._templates.set(template.id, template);
   }

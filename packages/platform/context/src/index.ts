@@ -11,5 +11,7 @@ export type {
   APIInfo,
   TabInfo,
   SessionInfo,
+  WorkspaceContextModel,
+  IContextProvider,
 } from './types';
 export { ContextEngine } from './ContextEngine';
