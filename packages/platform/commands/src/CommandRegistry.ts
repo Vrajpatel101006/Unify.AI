@@ -10,6 +10,7 @@ import type {
   ICommandRegistry,
   UndoableCommand,
 } from './types';
+import type { WorkspaceContext } from '@unify/platform-context';
 
 export class CommandRegistry implements ICommandRegistry {
   private readonly _commands = new Map<string, Command>();
@@ -46,14 +47,14 @@ export class CommandRegistry implements ICommandRegistry {
     this._groups.set(group.id, group);
   }
 
-  async execute(id: string, ...args: unknown[]): Promise<unknown> {
+  async execute(id: string, context?: WorkspaceContext, ...args: unknown[]): Promise<unknown> {
     this._ensureNotDisposed();
     const command = this._commands.get(id);
     if (!command) {
       throw new Error(`[CommandRegistry] Command not found: "${id}"`);
     }
 
-    const result = await command.execute(...args);
+    const result = await command.execute(context, ...args);
 
     this._addToHistory({
       commandId: id,

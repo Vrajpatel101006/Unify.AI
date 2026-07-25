@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { StatusBar } from './StatusBar';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { CommandPalette } from '../components/CommandPalette';
 
 interface AppShellProps {
   children: ReactNode;
@@ -12,6 +13,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   return (
     <ErrorBoundary>
+      <CommandPalette />
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans select-none">
         {/* Main Work Area */}
         <div className="flex flex-1 overflow-hidden w-full">

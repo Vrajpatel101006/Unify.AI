@@ -21,7 +21,6 @@ export interface IWorkspaceMemory {
   clear(): Promise<void>;
 }
 
-import type { ServiceToken } from '@unify/kernel';
-import { createServiceToken } from '@unify/kernel/src/types';
+import { createServiceToken, type ServiceToken } from '@unify/kernel';
 
 export const WorkspaceMemoryToken: ServiceToken<IWorkspaceMemory> = createServiceToken<IWorkspaceMemory>('memory.workspace', 'Workspace Memory');

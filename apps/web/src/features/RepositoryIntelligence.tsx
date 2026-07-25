@@ -1,9 +1,224 @@
 import { useFeatureStore } from '../stores/featureStores';
-import { Network, CheckCircle2, RefreshCw, BarChart2 } from 'lucide-react';
+import { Network, CheckCircle2, RefreshCw, BarChart2, Database, Github } from 'lucide-react';
+import { useProjectStore } from '../stores/projectStore';
+import { useState, useEffect } from 'react';
 
 export function RepositoryIntelligence() {
   const { repoIntel } = useFeatureStore();
   const { languages, dependencies, detectedFrameworks, totalFiles, totalLines, architectureType, scanStatus, triggerScan } = repoIntel;
+  const { currentProject, openLocalProject, cloneProject, githubToken, setGithubToken, createGithubRepo, githubRepos } = useProjectStore();
+
+  const [openPath, setOpenPath] = useState('');
+  const [cloneUrl, setCloneUrl] = useState('');
+  const [cloneDest, setCloneDest] = useState('');
+  const [ghTokenInput, setGhTokenInput] = useState('');
+  const [newRepoName, setNewRepoName] = useState('');
+  const [newRepoDest, setNewRepoDest] = useState('');
+  const [isCreatingRepo, setIsCreatingRepo] = useState(false);
+
+  // Fetch repos on load if token exists but repos are empty
+  const fetchGithubRepos = useProjectStore(state => state.fetchGithubRepos);
+  useEffect(() => {
+    if (githubToken && githubRepos.length === 0) {
+      fetchGithubRepos();
+    }
+  }, [githubToken, githubRepos.length, fetchGithubRepos]);
+
+  if (!currentProject) {
+    return (
+      <div className="flex flex-col h-full items-center text-xs select-text gap-6 bg-[var(--color-bg-primary)] p-6 overflow-y-auto">
+        
+        <div className="text-center mt-4">
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Repository Intelligence</h1>
+          <p className="text-[var(--color-text-muted)] mt-2">Connect a repository to analyze architecture, dependencies, and git history.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+          {/* Local Repository Options */}
+          <div className="flex flex-col gap-6">
+            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] p-6 flex flex-col gap-4">
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Database size={18} /> Open Local Repository</h2>
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase">Local Path</label>
+                <input 
+                  type="text" 
+                  value={openPath} 
+                  onChange={e => setOpenPath(e.target.value)} 
+                  placeholder="C:\path\to\repo" 
+                  className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
+                />
+                <button 
+                  onClick={() => openLocalProject(openPath)}
+                  disabled={!openPath}
+                  className="mt-2 rounded bg-[var(--color-accent-primary)] px-4 py-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Open Directory
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] p-6 flex flex-col gap-4">
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Clone External Repository</h2>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase">Git URL</label>
+                  <input 
+                    type="text" 
+                    value={cloneUrl} 
+                    onChange={e => setCloneUrl(e.target.value)} 
+                    placeholder="https://github.com/user/repo.git" 
+                    className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase">Destination Path</label>
+                  <input 
+                    type="text" 
+                    value={cloneDest} 
+                    onChange={e => setCloneDest(e.target.value)} 
+                    placeholder="C:\path\to\destination" 
+                    className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
+                  />
+                </div>
+                <button 
+                  onClick={() => cloneProject(cloneUrl, cloneDest)}
+                  disabled={!cloneUrl || !cloneDest}
+                  className="mt-1 rounded bg-[var(--color-accent-primary)] px-4 py-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Clone & Open
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* GitHub Integration */}
+          <div className="flex flex-col gap-6">
+            <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] p-6 flex flex-col gap-4">
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Github size={18} /> GitHub Integration</h2>
+              
+              {!githubToken ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Connect your GitHub account using a Personal Access Token (PAT) to create repositories directly.
+                  </p>
+                  <div className="bg-[var(--color-bg-tertiary)] p-3 rounded-lg border border-[var(--color-border-default)] text-[10px] text-[var(--color-text-secondary)] leading-relaxed flex flex-col gap-1.5">
+                    <strong className="text-[var(--color-text-primary)]">How to get a PAT:</strong>
+                    <ol className="list-decimal list-inside flex flex-col gap-1 ml-1">
+                      <li>Go to GitHub Settings &gt; Developer settings.</li>
+                      <li>Select <strong>Personal access tokens &gt; Tokens (classic)</strong>.</li>
+                      <li>Click <strong>Generate new token (classic)</strong>.</li>
+                      <li>Check the <strong>repo</strong> scope and generate.</li>
+                      <li>Copy the token (it starts with <code className="bg-[var(--color-bg-primary)] px-1 py-0.5 rounded border border-[var(--color-border-default)]">ghp_</code>) and paste it below.</li>
+                    </ol>
+                  </div>
+                  <div className="flex flex-col gap-1 mt-2">
+                    <label className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase">Personal Access Token</label>
+                    <input 
+                      type="password" 
+                      value={ghTokenInput} 
+                      onChange={e => setGhTokenInput(e.target.value)} 
+                      placeholder="ghp_xxxxxxxxxxxx" 
+                      className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
+                    />
+                  </div>
+                  <button 
+                    onClick={() => { setGithubToken(ghTokenInput); setGhTokenInput(''); }}
+                    disabled={!ghTokenInput}
+                    className="mt-1 rounded bg-[#2ea043] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2c974b] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Connect GitHub
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2 text-[var(--color-status-success)] text-xs font-bold bg-[var(--color-bg-primary)] p-3 rounded border border-[var(--color-border-default)]">
+                    <CheckCircle2 size={14} /> GitHub Account Connected
+                  </div>
+                  
+                  <div className="border-t border-[var(--color-border-default)] pt-4 flex flex-col gap-3">
+                    <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Your GitHub Repositories</h3>
+                    {githubRepos.length === 0 ? (
+                      <div className="text-[10px] text-[var(--color-text-muted)] italic">Loading repositories...</div>
+                    ) : (
+                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                        {githubRepos.map((repo: any) => (
+                          <div key={repo.id} className="flex items-center justify-between bg-[var(--color-bg-tertiary)] p-2 rounded border border-[var(--color-border-default)]">
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs font-bold text-[var(--color-text-primary)] truncate">{repo.full_name}</span>
+                              <span className="text-[9px] text-[var(--color-text-muted)] truncate">{repo.description || 'No description'}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const dest = window.prompt(`Enter local destination path for cloning ${repo.name}:`, `C:\\Users\\dell\\Desktop\\${repo.name}`);
+                                if (dest) {
+                                  cloneProject(repo.clone_url, dest);
+                                }
+                              }}
+                              className="ml-2 shrink-0 rounded bg-[var(--color-bg-hover)] border border-[var(--color-border-default)] px-2 py-1 text-[10px] font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-border-default)] transition-colors"
+                            >
+                              Clone
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-[var(--color-border-default)] pt-4 flex flex-col gap-3">
+                    <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Create New Repository</h3>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase">Repository Name</label>
+                      <input 
+                        type="text" 
+                        value={newRepoName} 
+                        onChange={e => setNewRepoName(e.target.value)} 
+                        placeholder="my-awesome-project" 
+                        className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase">Local Destination Path</label>
+                      <input 
+                        type="text" 
+                        value={newRepoDest} 
+                        onChange={e => setNewRepoDest(e.target.value)} 
+                        placeholder="C:\path\to\my-awesome-project" 
+                        className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
+                      />
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        setIsCreatingRepo(true);
+                        await createGithubRepo(newRepoName, newRepoDest);
+                        setIsCreatingRepo(false);
+                      }}
+                      disabled={!newRepoName || !newRepoDest || isCreatingRepo}
+                      className="mt-1 flex items-center justify-center gap-2 rounded bg-[var(--color-accent-primary)] px-4 py-2 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isCreatingRepo && <RefreshCw size={12} className="animate-spin" />}
+                      {isCreatingRepo ? 'Creating & Cloning...' : 'Create & Clone Repo'}
+                    </button>
+                  </div>
+                  <div className="pt-2 flex">
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to disconnect your GitHub account?')) {
+                          setGithubToken(null);
+                        }
+                      }}
+                      className="flex items-center gap-2 rounded border border-[var(--color-status-error)] px-3 py-1.5 text-[10px] font-semibold text-[var(--color-status-error)] hover:bg-[var(--color-status-error)] hover:text-white transition-colors"
+                    >
+                      Disconnect GitHub Account
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full w-full bg-[var(--color-bg-primary)] p-6 overflow-y-auto select-text">

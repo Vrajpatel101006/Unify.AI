@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { IRepositoryScanner, FrameworkMetadata, LanguageStats, DependencyGraph } from './types';
+import type { IRepositoryScanner, FrameworkMetadata, LanguageStats, DependencyGraph } from './types';
 
 export class RepositoryScanner implements IRepositoryScanner {
   public async scan(rootPath: string): Promise<{

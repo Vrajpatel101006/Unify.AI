@@ -22,7 +22,7 @@ export class RepositoryIndexer implements IRepositoryIndexer {
   public async indexRepository(rootPath: string): Promise<RepositoryIndex> {
     const scanResult = await this.scanner.scan(rootPath);
     const files: FileEntry[] = [];
-    const architectureNodes = [];
+    const architectureNodes: any[] = [];
 
     // Simple recursive traversal for Phase 1
     // We only scan .ts and .js files in 'src' directory as a starting point

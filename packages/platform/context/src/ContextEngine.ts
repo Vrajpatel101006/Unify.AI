@@ -38,27 +38,20 @@ function createDefaultContext(): WorkspaceContext {
 }
 
 import type { ICacheManager } from '@unify/platform-cache';
-import { createHash } from 'crypto';
 
 export class ContextEngine implements IContextEngine {
   private _context: WorkspaceContext;
   private readonly _listeners = new Map<ContextKey, Set<(value: unknown) => void>>();
   private readonly _providers: IContextProvider<any>[] = [];
 
-  private indexer?: IRepositoryIndexer;
-  private git?: IGitService;
-  private memory?: IWorkspaceMemory;
   private cacheManager?: ICacheManager;
 
   constructor(
-    indexer?: IRepositoryIndexer,
-    git?: IGitService,
-    memory?: IWorkspaceMemory,
+    _indexer?: IRepositoryIndexer,
+    _git?: IGitService,
+    _memory?: IWorkspaceMemory,
     cacheManager?: ICacheManager
   ) {
-    this.indexer = indexer;
-    this.git = git;
-    this.memory = memory;
     this.cacheManager = cacheManager;
     this._context = createDefaultContext();
   }
@@ -136,7 +129,13 @@ export class ContextEngine implements IContextEngine {
         git: this._context.gitStatus,
         branch: this._context.gitBranch
       });
-      cacheKey = createHash('md5').update(stateStr).digest('hex');
+      // Simple string hash since node 'crypto' isn't browser-safe
+      let hash = 0;
+      for (let i = 0; i < stateStr.length; i++) {
+        hash = ((hash << 5) - hash) + stateStr.charCodeAt(i);
+        hash |= 0;
+      }
+      cacheKey = 'ctx_' + hash;
       
       cache = this.cacheManager.getMemoryCache('workspaceContext');
       const cached = await cache.get<WorkspaceContextModel>(cacheKey);

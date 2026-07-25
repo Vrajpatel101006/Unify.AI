@@ -12,8 +12,11 @@ export class MockAIProvider implements IAIProvider {
     const userMsg = request.messages[request.messages.length - 1]?.content || '';
     let responseText = `I am a mock response from Unify.AI MockProvider.\n\nYou asked: "${userMsg}"\n\nI have successfully received your request along with the Workspace Context. I see everything in your repository.`;
 
-    if (userMsg.toLowerCase().includes('explain')) {
+    if (typeof userMsg === 'string' && userMsg.toLowerCase().includes('explain')) {
       responseText = `### Code Explanation\n\nBased on your Workspace Context, I can see you're looking at a piece of code. \n\nThis code appears to be part of the active file or selection provided in the context graph. The logic implements a core feature of the Unify.AI platform.\n\nSince I am a mock provider, I cannot actually read the code, but I can confirm the AITaskEngine orchestrated the workflow flawlessly!`;
+    } else if (typeof userMsg === 'string' && userMsg.toLowerCase().includes('commit message')) {
+      // Mocking a conventional commit message based on diff presence
+      responseText = `feat(ai): integrate end-to-end AI commit generation\n\n- Automatically fetch git diff context\n- Route through AITaskEngine and MockProvider\n- Populate UI with generated message\n\nThis demonstrates the powerful platform workflow architecture.`;
     }
 
     return {
@@ -68,7 +71,7 @@ export class MockAIProvider implements IAIProvider {
     return true;
   }
 
-  estimateCost(request: AIRequest): CostEstimate {
+  estimateCost(_request: AIRequest): CostEstimate {
     return {
       estimatedCost: 0,
       currency: 'USD',

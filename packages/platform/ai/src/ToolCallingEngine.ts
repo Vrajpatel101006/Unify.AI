@@ -55,7 +55,7 @@ export class ToolCallingEngine implements IToolCallingEngine {
     return Array.from(this._tools.values());
   }
 
-  getToolsByCapability(capability: string): ToolDefinition[] {
+  getToolsByCapability(_capability: string): ToolDefinition[] {
     // Basic filter
     return this.getTools();
   }

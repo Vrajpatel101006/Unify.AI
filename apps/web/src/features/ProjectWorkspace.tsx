@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useProjectStore, type AIMemoryNote } from '../stores/projectStore';
-import { GitBranch, Database, Globe, FileCode, CheckCircle2, AlertTriangle, Plus, Trash2, Edit3, Save, Pin, FileText, Play } from 'lucide-react';
+import { GitBranch, Database, Globe, FileCode, CheckCircle2, AlertTriangle, Plus, Trash2, Edit3, Save, Pin, FileText, Play, RefreshCw, Upload, Download } from 'lucide-react';
 
 export function ProjectWorkspace() {
   const { currentProject, connections, notes, toggleConnectionStatus, addConnection, removeConnection, addNote, updateNote, deleteNote } = useProjectStore();
@@ -47,16 +47,62 @@ export function ProjectWorkspace() {
     setNoteContent(note.content);
   };
 
+  const { commitChanges, refreshGitStatus, pushProject, pullProject, pendingCommitMessage, setPendingCommitMessage } = useProjectStore();
+  
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // File editor state
+  const [editingFile, setEditingFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const openFileEditor = async (relativePath: string) => {
+    if (!currentProject) return;
+    const absolutePath = `${currentProject.path}/${relativePath}`;
+    try {
+      const res = await fetch(`/api/local/fs/read?path=${encodeURIComponent(absolutePath)}`);
+      const { content } = await res.json();
+      setFileContent(content || '');
+      setEditingFile(relativePath);
+    } catch (err) {
+      console.error('Failed to read file', err);
+    }
+  };
+
+  const saveFileContent = async () => {
+    if (!currentProject || !editingFile) return;
+    setIsSaving(true);
+    const absolutePath = `${currentProject.path}/${editingFile}`;
+    try {
+      await fetch('/api/local/fs/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: absolutePath, content: fileContent })
+      });
+      refreshGitStatus();
+    } catch (err) {
+      console.error('Failed to write file', err);
+    }
+    setIsSaving(false);
+    setEditingFile(null);
+  };
+
   if (!currentProject) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-[var(--color-text-muted)] select-text">
-        No active project connected. Open a directory workspace.
+        <div className="flex flex-col items-center gap-3">
+          <Database size={32} className="text-[var(--color-border-default)]" />
+          <p>No active project connected.</p>
+          <p>Please open or connect a repository in the <strong className="text-[var(--color-text-primary)]">Repository Intelligence</strong> tab.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-[var(--color-bg-primary)] p-6 overflow-y-auto select-text">
+    <>
+      <div className="flex flex-col h-full w-full bg-[var(--color-bg-primary)] p-6 overflow-y-auto select-text relative">
       {/* Header Overview Card */}
       <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] p-5 mb-6 flex justify-between items-center shrink-0">
         <div>
@@ -68,7 +114,24 @@ export function ProjectWorkspace() {
           </div>
           <p className="text-xs text-[var(--color-text-muted)] mt-1.5 font-mono">{currentProject.path}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-6">
+          <div className="flex gap-2">
+            <button 
+              onClick={async () => { setIsSyncing(true); await pullProject(); setIsSyncing(false); }}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-1.5 text-[10px] font-bold text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              <Download size={12} /> Pull
+            </button>
+            <button 
+              onClick={async () => { setIsSyncing(true); await pushProject(); setIsSyncing(false); }}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-1.5 text-[10px] font-bold text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              <Upload size={12} /> Push
+            </button>
+          </div>
+          <div className="w-px h-8 bg-[var(--color-border-default)]"></div>
           <div className="text-right">
             <span className="text-[10px] uppercase font-bold text-[var(--color-text-muted)]">Git status</span>
             <div className="flex items-center gap-1.5 mt-1 text-xs font-semibold text-[var(--color-status-warning)]">
@@ -84,9 +147,46 @@ export function ProjectWorkspace() {
         {/* Left Column: Git Status Changes tree & History logs */}
         <div className="flex flex-col gap-6">
           <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] p-4 flex flex-col gap-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
-              Git Repository Index
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                Git Repository Index
+              </h3>
+              <button 
+                onClick={refreshGitStatus}
+                className="p-1 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] cursor-pointer"
+                title="Refresh Status"
+              >
+                <RefreshCw size={14} />
+              </button>
+            </div>
+
+            {/* Commit Form */}
+            <div className="flex flex-col gap-2 mb-2">
+              <textarea 
+                value={pendingCommitMessage}
+                onChange={e => setPendingCommitMessage(e.target.value)}
+                placeholder="Commit message..."
+                className="w-full rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] p-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)] resize-none"
+                rows={4}
+              />
+              <button 
+                onClick={async () => {
+                  setIsCommitting(true);
+                  const allFiles = [
+                    ...currentProject.gitStatus.staged,
+                    ...currentProject.gitStatus.unstaged,
+                    ...currentProject.gitStatus.untracked
+                  ];
+                  await commitChanges(pendingCommitMessage, allFiles);
+                  setPendingCommitMessage('');
+                  setIsCommitting(false);
+                }}
+                disabled={!pendingCommitMessage || isCommitting || (currentProject.gitStatus.staged.length === 0 && currentProject.gitStatus.unstaged.length === 0 && currentProject.gitStatus.untracked.length === 0)}
+                className="self-end rounded bg-[var(--color-accent-primary)] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {isCommitting ? 'Committing...' : 'Commit All'}
+              </button>
+            </div>
 
             {/* Staged */}
             {currentProject.gitStatus.staged.length > 0 && (
@@ -94,7 +194,7 @@ export function ProjectWorkspace() {
                 <div className="text-[10px] font-bold text-[var(--color-status-success)] uppercase">Staged changes</div>
                 <div className="flex flex-col gap-1">
                   {currentProject.gitStatus.staged.map((f) => (
-                    <div key={f} className="flex items-center gap-1.5 text-xs text-[var(--color-text-primary)]">
+                    <div key={f} onClick={() => openFileEditor(f)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-primary)] cursor-pointer hover:bg-[var(--color-bg-hover)] px-1 py-0.5 rounded">
                       <FileCode size={12} className="text-[var(--color-status-success)] shrink-0" />
                       <span className="truncate">{f}</span>
                     </div>
@@ -109,7 +209,7 @@ export function ProjectWorkspace() {
                 <div className="text-[10px] font-bold text-[var(--color-status-warning)] uppercase">Unstaged changes</div>
                 <div className="flex flex-col gap-1">
                   {currentProject.gitStatus.unstaged.map((f) => (
-                    <div key={f} className="flex items-center gap-1.5 text-xs text-[var(--color-text-primary)]">
+                    <div key={f} onClick={() => openFileEditor(f)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-primary)] cursor-pointer hover:bg-[var(--color-bg-hover)] px-1 py-0.5 rounded">
                       <FileCode size={12} className="text-[var(--color-status-warning)] shrink-0" />
                       <span className="truncate">{f}</span>
                     </div>
@@ -124,7 +224,7 @@ export function ProjectWorkspace() {
                 <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase">Untracked changes</div>
                 <div className="flex flex-col gap-1">
                   {currentProject.gitStatus.untracked.map((f) => (
-                    <div key={f} className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+                    <div key={f} onClick={() => openFileEditor(f)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] cursor-pointer hover:bg-[var(--color-bg-hover)] px-1 py-0.5 rounded">
                       <FileText size={12} className="text-[var(--color-text-muted)] shrink-0" />
                       <span className="truncate">{f}</span>
                     </div>
@@ -332,6 +432,43 @@ export function ProjectWorkspace() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+
+      {/* File Editor Modal */}
+      {editingFile && (
+        <div className="absolute inset-0 bg-black/50 z-50 flex flex-col p-8">
+          <div className="flex-1 flex flex-col bg-[var(--color-bg-primary)] rounded-xl border border-[var(--color-border-default)] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between bg-[var(--color-bg-secondary)] px-4 py-2 border-b border-[var(--color-border-default)]">
+              <div className="flex items-center gap-2">
+                <FileCode size={14} className="text-[var(--color-accent-primary)]" />
+                <span className="text-xs font-bold text-[var(--color-text-primary)] font-mono">{editingFile}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setEditingFile(null)}
+                  className="px-3 py-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveFileContent}
+                  disabled={isSaving}
+                  className="flex items-center gap-1.5 rounded bg-[var(--color-accent-primary)] px-3 py-1 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+                >
+                  {isSaving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
+                  Save
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={fileContent}
+              onChange={(e) => setFileContent(e.target.value)}
+              className="flex-1 w-full bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] p-4 font-mono text-xs focus:outline-none resize-none leading-relaxed whitespace-pre"
+              spellCheck={false}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -56,17 +56,19 @@ export interface IServiceContainer {
 // ---------------------------------------------------------------------------
 
 /** The lifecycle phases of a workspace. */
-export enum WorkspacePhaseEnum {
-  Opening = 'opening',
-  Loading = 'loading',
-  Ready = 'ready',
-  Saving = 'saving',
-  Closing = 'closing',
-  Disposed = 'disposed',
-}
+export const WorkspacePhaseEnum = {
+  Opening: 'opening',
+  Loading: 'loading',
+  Ready: 'ready',
+  Saving: 'saving',
+  Closing: 'closing',
+  Disposed: 'disposed',
+} as const;
+
+export type WorkspacePhaseEnum = typeof WorkspacePhaseEnum[keyof typeof WorkspacePhaseEnum];
 
 /** Callback for lifecycle phase changes. */
-export type PhaseChangeCallback = (phase: WorkspacePhaseEnum) => void;
+export type PhaseChangeCallback = (phase: WorkspacePhaseEnum) => void | Promise<void>;
 
 /** The Workspace Lifecycle interface. */
 export interface IWorkspaceLifecycle {

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { IWorkspaceMemory, WorkspaceMemoryState } from './types';
+import type { IWorkspaceMemory, WorkspaceMemoryState } from './types';
 
 const DEFAULT_STATE: WorkspaceMemoryState = {
   recentFiles: [],

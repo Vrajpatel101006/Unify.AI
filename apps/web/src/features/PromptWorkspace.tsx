@@ -57,7 +57,7 @@ export function PromptWorkspace() {
       });
       setVariablesInput(inputs);
     }
-  }, [selectedPromptId]);
+  }, [selectedPromptId, selectedPrompt, variablesInput]);
 
   // Extract variables on template change
   const handleTemplateChange = (text: string) => {

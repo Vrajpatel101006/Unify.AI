@@ -2,8 +2,7 @@
  * @unify/platform-indexing — Repository indexing, dependency graph, architecture graph.
  */
 
-import type { Disposable, ServiceToken } from '@unify/kernel';
-import { createServiceToken } from '@unify/kernel/src/types';
+import { createServiceToken, type Disposable, type ServiceToken } from '@unify/kernel';
 
 export interface FileEntry {
   path: string;

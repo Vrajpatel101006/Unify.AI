@@ -14,6 +14,7 @@ export { ServiceContainer } from './ServiceContainer';
 export { WorkspaceLifecycle, WorkspacePhase } from './WorkspaceLifecycle';
 
 // Types
+export { createServiceToken } from './types';
 export type {
   ServiceToken,
   ServiceDescriptor,

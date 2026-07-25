@@ -15,7 +15,7 @@
  */
 
 import { ServiceContainer } from './ServiceContainer';
-import { WorkspaceLifecycle, WorkspacePhase } from './WorkspaceLifecycle';
+import { WorkspaceLifecycle } from './WorkspaceLifecycle';
 import type { IWorkspaceKernel, ServiceScope, ServiceToken } from './types';
 import { WorkspacePhaseEnum } from './types';
 
