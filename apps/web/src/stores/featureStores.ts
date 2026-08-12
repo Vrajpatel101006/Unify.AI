@@ -36,10 +36,12 @@ export interface DiagnosticItem {
   id: string;
   filePath: string;
   line: number;
-  type: 'unused-import' | 'duplicate-code' | 'dead-code' | 'complexity';
+  type: string;
   severity: 'error' | 'warning' | 'info';
   message: string;
   suggestion: string;
+  targetContent?: string;
+  replacementContent?: string;
 }
 
 export interface TodoItem {
@@ -59,8 +61,12 @@ export interface CodeIntelState {
     functionsCount: number;
     grade: 'A' | 'B' | 'C' | 'D' | 'F';
   } | null;
-  analyzeFile: (filePath: string) => void;
+  isAnalyzing: boolean;
+  analysisError: string | null;
+  analyzeFile: (filePath: string) => Promise<void>;
+  applyQuickFix: (diagnosticId: string, filePath: string) => Promise<void>;
   toggleTodo: (id: string) => void;
+  removeTodo: (id: string) => void;
   addTodo: (filePath: string, line: number, text: string) => void;
 }
 
@@ -139,7 +145,7 @@ interface FeatureStore {
   doc: DocState;
 }
 
-export const useFeatureStore = create<FeatureStore>((set) => ({
+export const useFeatureStore = create<FeatureStore>((set, get) => ({
   // 1. Repository Intelligence State
   repoIntel: {
     languages: [
@@ -210,28 +216,100 @@ export const useFeatureStore = create<FeatureStore>((set) => ({
       { id: 't-3', filePath: 'packages/platform/ai/src/AIRouter.ts', line: 52, text: 'TODO: Configure Ollama fallback timeout models.', completed: false },
     ],
     selectedFileAnalysis: null,
-    analyzeFile: (_filePath) => set((state) => {
-      // Simulate code intelligence metrics analyzer
-      const score = Math.floor(60 + Math.random() * 38);
-      const grade = score > 90 ? 'A' : score > 80 ? 'B' : score > 70 ? 'C' : score > 60 ? 'D' : 'F';
-      return {
-        codeIntel: {
-          ...state.codeIntel,
-          selectedFileAnalysis: {
-            complexityScore: score,
-            linesOfCode: Math.floor(100 + Math.random() * 400),
-            functionsCount: Math.floor(4 + Math.random() * 12),
-            grade,
+    isAnalyzing: false,
+    analysisError: null,
+    analyzeFile: async (filePath) => {
+      set((state) => ({ codeIntel: { ...state.codeIntel, isAnalyzing: true, analysisError: null } }));
+      try {
+        const { useProviderStore } = await import('./providerStore');
+        const providers = useProviderStore.getState().providers;
+        const provider = providers.find(p => p.isActive) || providers[0];
+        
+        if (!provider || !provider.apiKey) {
+          throw new Error('No AI Provider API key configured. Please set one up first.');
+        }
+
+        const res = await fetch('/api/local/code/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: filePath,
+            providerId: provider.id,
+            apiKey: provider.apiKey
+          })
+        });
+
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to analyze code');
+        }
+
+        const result = data.result;
+        
+        set((state) => ({
+          codeIntel: {
+            ...state.codeIntel,
+            isAnalyzing: false,
+            selectedFileAnalysis: {
+              complexityScore: result.complexityScore,
+              linesOfCode: result.linesOfCode,
+              functionsCount: result.functionsCount,
+              grade: result.grade,
+            },
+            diagnostics: (result.diagnostics || []).map((d: any) => ({
+              ...d,
+              id: generateId(),
+              filePath: filePath
+            }))
           },
-        },
-      };
-    }),
+        }));
+      } catch (err: any) {
+        set((state) => ({
+          codeIntel: {
+            ...state.codeIntel,
+            isAnalyzing: false,
+            analysisError: err.message
+          }
+        }));
+      }
+    },
+    applyQuickFix: async (diagnosticId, filePath) => {
+      const diag = get().codeIntel.diagnostics.find((d: any) => d.id === diagnosticId);
+      if (!diag || !diag.targetContent || !diag.replacementContent) return;
+
+      const res = await fetch('/api/local/code/apply-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: filePath,
+          targetContent: diag.targetContent,
+          replacementContent: diag.replacementContent
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert('Failed to apply quick fix: ' + (err.error || 'Unknown error'));
+        return;
+      }
+
+      alert('Quick fix applied successfully!');
+      // Re-run analysis automatically
+      get().codeIntel.analyzeFile(filePath);
+    },
     toggleTodo: (id) => set((state) => ({
       codeIntel: {
         ...state.codeIntel,
         todos: state.codeIntel.todos.map((todo) =>
           todo.id === id ? { ...todo, completed: !todo.completed } : todo
         ),
+      },
+    })),
+    removeTodo: (id) => set((state) => ({
+      codeIntel: {
+        ...state.codeIntel,
+        todos: state.codeIntel.todos.filter((todo) => todo.id !== id),
       },
     })),
     addTodo: (filePath, line, text) => set((state) => ({

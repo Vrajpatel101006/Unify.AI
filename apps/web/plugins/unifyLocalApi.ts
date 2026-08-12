@@ -168,6 +168,136 @@ export function unifyLocalApiPlugin(): Plugin {
             return;
           }
 
+          if (pathname === '/api/local/code/analyze' && req.method === 'POST') {
+            const fs = await import('node:fs/promises');
+            const { path: targetPath, providerId, apiKey } = body;
+            if (!targetPath || !apiKey) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Path and API key required' }));
+              return;
+            }
+
+            const content = await fs.readFile(targetPath, 'utf-8');
+            const lines = content.split('\n');
+            const linesOfCode = lines.length;
+            const functionsCount = (content.match(/function\s+\w+|const\s+\w+\s*=\s*(async\s*)?\([^)]*\)\s*=>/g) || []).length;
+
+            const prompt = `You are a strict code analyzer. Respond ONLY with valid JSON, no markdown formatting blocks, no extra text. Analyze the following code and return a JSON object with this exact structure:
+{
+  "grade": "A|B|C|D|F",
+  "complexityScore": <number 1-100>,
+  "diagnostics": [
+    {
+      "line": <exact line number>,
+      "type": "complexity|dead-code|bug|style",
+      "severity": "error|warning|info",
+      "message": "<description>",
+      "targetContent": "<exact snippet to replace>",
+      "replacementContent": "<the improved code snippet for a quick fix>"
+    }
+  ]
+}
+
+Code to analyze:
+${content}`;
+
+            let aiResponse;
+            // Support huggingface currently as primary example
+            if (providerId === 'huggingface' || providerId === 'hf') {
+              aiResponse = await fetch('https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  model: 'meta-llama/Llama-3.3-70B-Instruct',
+                  messages: [{ role: 'user', content: prompt }],
+                  max_tokens: 1500
+                })
+              });
+            } else if (providerId === 'openai') {
+              aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  model: 'gpt-4o-mini',
+                  messages: [{ role: 'user', content: prompt }],
+                  response_format: { type: "json_object" }
+                })
+              });
+            } else {
+              // fallback generic openai compatible endpoint
+               aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  model: 'gpt-4o-mini',
+                  messages: [{ role: 'user', content: prompt }]
+                })
+              });
+            }
+
+            if (!aiResponse.ok) {
+              if (aiResponse.status === 429 || aiResponse.status === 402 || aiResponse.status === 401) {
+                res.statusCode = 429;
+                res.end(JSON.stringify({ error: 'Tokens are over or API key is invalid/exhausted.' }));
+                return;
+              }
+              const errText = await aiResponse.text();
+              throw new Error(`AI API Error: ${errText}`);
+            }
+
+            const data = await aiResponse.json() as any;
+            let jsonString = '';
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+              jsonString = data.choices[0].message.content;
+            } else {
+              throw new Error('Invalid AI response format');
+            }
+
+            // Strip markdown block if model ignored the prompt
+            jsonString = jsonString.replace(/^```json/m, '').replace(/```$/m, '').trim();
+            
+            let result;
+            try {
+              result = JSON.parse(jsonString);
+            } catch (e) {
+              throw new Error('AI returned invalid JSON: ' + jsonString);
+            }
+
+            result.linesOfCode = linesOfCode;
+            result.functionsCount = functionsCount;
+
+            res.end(JSON.stringify({ result }));
+            return;
+          }
+
+          if (pathname === '/api/local/code/apply-fix' && req.method === 'POST') {
+            const fs = await import('node:fs/promises');
+            const { path: targetPath, targetContent, replacementContent } = body;
+            if (!targetPath || !targetContent || !replacementContent) {
+              throw new Error('Missing parameters');
+            }
+            
+            const content = await fs.readFile(targetPath, 'utf-8');
+            if (content.includes(targetContent)) {
+               const newContent = content.replace(targetContent, replacementContent);
+               await fs.writeFile(targetPath, newContent, 'utf-8');
+               res.end(JSON.stringify({ success: true }));
+            } else {
+               res.statusCode = 400;
+               res.end(JSON.stringify({ error: 'Target content not found in file (it may have been modified).' }));
+            }
+            return;
+          }
+
           res.statusCode = 404;
           res.end(JSON.stringify({ error: 'Not found' }));
         } catch (err: any) {
