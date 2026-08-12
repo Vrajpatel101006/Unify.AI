@@ -11,7 +11,7 @@ import type { Disposable } from '@unify/kernel';
 // Event Handler
 // ---------------------------------------------------------------------------
 
-export type EventHandler<T = unknown> = (data: T) => void | Promise<void>;
+export type EventHandler<T = unknown> = (data: T) => void | boolean | Promise<void | boolean>;
 
 // ---------------------------------------------------------------------------
 // Event Options

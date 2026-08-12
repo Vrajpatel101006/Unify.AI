@@ -1,12 +1,12 @@
 import { useFeatureStore } from '../stores/featureStores';
-import { Network, CheckCircle2, RefreshCw, BarChart2, Database, Github } from 'lucide-react';
+import { Network, CheckCircle2, RefreshCw, BarChart2, Database, Github, Clock } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useState, useEffect } from 'react';
 
 export function RepositoryIntelligence() {
   const { repoIntel } = useFeatureStore();
   const { languages, dependencies, detectedFrameworks, totalFiles, totalLines, architectureType, scanStatus, triggerScan } = repoIntel;
-  const { currentProject, openLocalProject, cloneProject, githubToken, setGithubToken, createGithubRepo, githubRepos } = useProjectStore();
+  const { currentProject, openLocalProject, cloneProject, githubToken, githubTokenExpiresAt, setGithubToken, createGithubRepo, githubRepos } = useProjectStore();
 
   const [openPath, setOpenPath] = useState('');
   const [cloneUrl, setCloneUrl] = useState('');
@@ -15,6 +15,46 @@ export function RepositoryIntelligence() {
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoDest, setNewRepoDest] = useState('');
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
+  const [expirationOption, setExpirationOption] = useState('forever');
+  const [timeLeftText, setTimeLeftText] = useState('');
+
+  // Check token expiration on interval
+  useEffect(() => {
+    if (!githubToken) {
+      setTimeLeftText('');
+      return;
+    }
+
+    const updateTimeLeft = () => {
+      if (githubTokenExpiresAt === null) {
+        setTimeLeftText('Permanent (No expiration)');
+        return;
+      }
+
+      const diff = githubTokenExpiresAt - Date.now();
+      if (diff <= 0) {
+        setGithubToken(null, null);
+        setTimeLeftText('');
+        alert('GitHub access token has expired and was disconnected.');
+      } else {
+        const seconds = Math.floor((diff / 1000) % 60);
+        const minutes = Math.floor((diff / (1000 * 60)) % 60);
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+        let text = '';
+        if (days > 0) text += `${days}d `;
+        if (hours > 0 || days > 0) text += `${hours}h `;
+        if (minutes > 0 || hours > 0 || days > 0) text += `${minutes}m `;
+        text += `${seconds}s left`;
+        setTimeLeftText(text);
+      }
+    };
+
+    updateTimeLeft();
+    const interval = setInterval(updateTimeLeft, 1000);
+    return () => clearInterval(interval);
+  }, [githubToken, githubTokenExpiresAt, setGithubToken]);
 
   // Fetch repos on load if token exists but repos are empty
   const fetchGithubRepos = useProjectStore(state => state.fetchGithubRepos);
@@ -121,18 +161,48 @@ export function RepositoryIntelligence() {
                       className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
                     />
                   </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase">Connection Lifetime</label>
+                    <select 
+                      value={expirationOption} 
+                      onChange={e => setExpirationOption(e.target.value)}
+                      className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-primary)] px-3 py-2 text-xs text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)] border-r-8 border-transparent"
+                    >
+                      <option value="forever">Forever (No expiration)</option>
+                      <option value="1h">1 Hour</option>
+                      <option value="1d">1 Day</option>
+                      <option value="7d">7 Days</option>
+                    </select>
+                  </div>
                   <button 
-                    onClick={() => { setGithubToken(ghTokenInput); setGhTokenInput(''); }}
+                    onClick={() => {
+                      let expiresAt: number | null = null;
+                      if (expirationOption === '1h') {
+                        expiresAt = Date.now() + 60 * 60 * 1000;
+                      } else if (expirationOption === '1d') {
+                        expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+                      } else if (expirationOption === '7d') {
+                        expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+                      }
+                      setGithubToken(ghTokenInput, expiresAt);
+                      setGhTokenInput('');
+                    }}
                     disabled={!ghTokenInput}
-                    className="mt-1 rounded bg-[#2ea043] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2c974b] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="mt-1 rounded bg-[#2ea043] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2c974b] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   >
                     Connect GitHub
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-2 text-[var(--color-status-success)] text-xs font-bold bg-[var(--color-bg-primary)] p-3 rounded border border-[var(--color-border-default)]">
-                    <CheckCircle2 size={14} /> GitHub Account Connected
+                  <div className="flex items-center justify-between text-xs bg-[var(--color-bg-primary)] p-3 rounded border border-[var(--color-border-default)]">
+                    <div className="flex items-center gap-2 text-[var(--color-status-success)] font-bold">
+                      <CheckCircle2 size={14} /> Connected
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] font-semibold bg-[var(--color-bg-secondary)] px-2.5 py-1 rounded border border-[var(--color-border-default)]">
+                      <Clock size={11} className="text-[var(--color-text-muted)]" />
+                      <span>{timeLeftText}</span>
+                    </div>
                   </div>
                   
                   <div className="border-t border-[var(--color-border-default)] pt-4 flex flex-col gap-3">

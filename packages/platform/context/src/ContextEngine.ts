@@ -37,7 +37,7 @@ function createDefaultContext(): WorkspaceContext {
   };
 }
 
-import type { ICacheManager } from '@unify/platform-cache';
+import type { ICache, ICacheManager } from '@unify/platform-cache';
 
 export class ContextEngine implements IContextEngine {
   private _context: WorkspaceContext;
@@ -119,7 +119,7 @@ export class ContextEngine implements IContextEngine {
 
   public async buildWorkspaceContext(): Promise<WorkspaceContextModel> {
     let cacheKey = '';
-    let cache;
+    let cache: ICache | undefined;
     if (this.cacheManager) {
       // Build a cache key representing the exact state
       const stateStr = JSON.stringify({

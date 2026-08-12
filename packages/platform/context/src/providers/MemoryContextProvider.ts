@@ -6,7 +6,7 @@ export class MemoryContextProvider implements IContextProvider {
 
   constructor(private memory: IWorkspaceMemory) {}
 
-  public async provideContext(context: WorkspaceContext): Promise<any | null> {
+  public async provideContext(_context: WorkspaceContext): Promise<any | null> {
     const recentFiles = await this.memory.getRecent('recentFiles', 5);
     const recentConversations = await this.memory.getRecent('recentConversations', 3);
     

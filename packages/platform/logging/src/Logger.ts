@@ -8,11 +8,9 @@ import { LogCategory, LogLevel } from './types';
 export class Logger implements ILogger {
   private readonly _transports: ILogTransport[] = [];
   private _minLevel: LogLevel = LogLevel.Debug;
-  private readonly _category: LogCategory;
   private readonly _source?: string;
 
-  constructor(category: LogCategory = LogCategory.General, source?: string) {
-    this._category = category;
+  constructor(_category: LogCategory = LogCategory.General, source?: string) {
     this._source = source;
   }
 

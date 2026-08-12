@@ -10,13 +10,14 @@ describe('CommandRegistry', () => {
     registry.register({
       id: 'cmd.test',
       title: 'Test Command',
+      description: 'Test command description',
       category: 'general',
       execute: mockFn,
     });
 
-    const result = await registry.execute('cmd.test', 1, 2);
+    const result = await registry.execute('cmd.test', 1 as any, 2);
     expect(result).toBe('success');
-    expect(mockFn).toHaveBeenCalledWith(1, 2);
+    expect(mockFn).toHaveBeenCalledWith(1 as any, 2);
   });
 
   it('should support undo/redo', async () => {
@@ -26,6 +27,7 @@ describe('CommandRegistry', () => {
     const undoable: UndoableCommand = {
       id: 'cmd.add',
       title: 'Add',
+      description: 'Add value command',
       category: 'math',
       execute: async () => { value += 5; },
       undo: async () => { value -= 5; },
@@ -49,6 +51,7 @@ describe('CommandRegistry', () => {
     registry.register({
       id: 'cmd.save',
       title: 'Save',
+      description: 'Save command',
       category: 'file',
       keybinding: 'Ctrl+S',
       execute: async () => {},

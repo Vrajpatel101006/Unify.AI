@@ -62,8 +62,9 @@ interface ProjectStore {
   setPendingCommitMessage: (msg: string) => void;
 
   githubToken: string | null;
+  githubTokenExpiresAt: number | null;
   githubRepos: any[];
-  setGithubToken: (token: string | null) => void;
+  setGithubToken: (token: string | null, expiresAt?: number | null) => void;
   fetchGithubRepos: () => Promise<void>;
   createGithubRepo: (name: string, destPath: string) => Promise<void>;
 
@@ -256,9 +257,10 @@ export const useProjectStore = create<ProjectStore>()(
       },
       
       githubToken: null,
+      githubTokenExpiresAt: null,
       githubRepos: [],
-      setGithubToken: (token) => {
-        set({ githubToken: token });
+      setGithubToken: (token, expiresAt = null) => {
+        set({ githubToken: token, githubTokenExpiresAt: expiresAt });
         if (token) {
           get().fetchGithubRepos();
         } else {
@@ -314,7 +316,7 @@ export const useProjectStore = create<ProjectStore>()(
     }),
     {
       name: 'unify-project-store',
-      partialize: (state) => ({ githubToken: state.githubToken, hfToken: state.hfToken }),
+      partialize: (state) => ({ githubToken: state.githubToken, githubTokenExpiresAt: state.githubTokenExpiresAt, hfToken: state.hfToken }),
     }
   )
 );
