@@ -14,3 +14,7 @@ export { PromptBuilder } from './PromptBuilder';
 export { ToolCallingEngine } from './ToolCallingEngine';
 export { AITaskEngine } from './AITaskEngine';
 export { MockAIProvider } from './MockAIProvider';
+export { HuggingFaceProvider } from './HuggingFaceProvider';
+export { GeminiProvider } from './GeminiProvider';
+export { GrokProvider } from './GrokProvider';
+export { GroqProvider } from './GroqProvider';

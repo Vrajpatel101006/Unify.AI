@@ -47,7 +47,7 @@ export class AITaskEngine implements IAITaskEngine {
     const messages: AIMessage[] = [
       {
         role: 'system',
-        content: `You are an expert AI assistant operating within the Unify.AI IDE.\n\n${contextString}`
+        content: `You are an expert AI assistant operating within the Unify.AI IDE. Keep your answers concise, direct, and avoid overly verbose or exhaustively detailed explanations unless explicitly requested.\n\n${contextString}`
       },
       {
         role: 'user',

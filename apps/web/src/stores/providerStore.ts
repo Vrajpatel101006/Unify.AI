@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface ProviderConfig {
   id: string; // e.g. 'openai', 'gemini', 'claude', 'deepseek', 'ollama'
@@ -31,7 +32,31 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: 'Google Gemini',
     apiKey: '',
     isActive: true,
-    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash'],
+    models: ['gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'],
+    usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
+  },
+  {
+    id: 'huggingface',
+    name: 'Hugging Face',
+    apiKey: '',
+    isActive: false,
+    models: ['Qwen/Qwen2.5-Coder-32B-Instruct', 'meta-llama/Meta-Llama-3.1-70B-Instruct'],
+    usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
+  },
+  {
+    id: 'grok',
+    name: 'xAI Grok',
+    apiKey: '',
+    isActive: false,
+    models: ['grok-beta', 'grok-vision-beta', 'grok-2'],
+    usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    apiKey: '',
+    isActive: false,
+    models: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b'],
     usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
   },
   {
@@ -69,79 +94,112 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
 ];
 
-export const useProviderStore = create<ProviderStore>((set) => ({
-  providers: DEFAULT_PROVIDERS,
+export const useProviderStore = create<ProviderStore>()(
+  persist(
+    (set) => ({
+      providers: DEFAULT_PROVIDERS,
 
-  addOrUpdateProvider: (config) => set((state) => {
-    const exists = state.providers.some((p) => p.id === config.id);
-    if (exists) {
-      return {
-        providers: state.providers.map((p) =>
-          p.id === config.id ? { ...p, ...config } : p
-        ),
-      };
-    }
-    return {
-      providers: [
-        ...state.providers,
-        {
-          ...config,
-          isActive: false,
-          usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
-        },
-      ],
-    };
-  }),
-
-  removeProvider: (id) => set((state) => ({
-    providers: state.providers.filter((p) => p.id !== id),
-  })),
-
-  setDefaultProvider: (id) => set((state) => ({
-    providers: state.providers.map((p) => ({
-      ...p,
-      isActive: p.id === id,
-    })),
-  })),
-
-  testLatency: async (id) => {
-    // Simulate API connection speed test
-    await new Promise((r) => setTimeout(r, 600));
-    const randomLatency = Math.floor(100 + Math.random() * 400);
-
-    set((state) => ({
-      providers: state.providers.map((p) =>
-        p.id === id ? { ...p, latency: randomLatency } : p
-      ),
-    }));
-
-    return randomLatency;
-  },
-
-  addUsage: (id, promptTokens, completionTokens, cost) => set((state) => ({
-    providers: state.providers.map((p) =>
-      p.id === id
-        ? {
-            ...p,
-            usage: {
-              promptTokens: p.usage.promptTokens + promptTokens,
-              completionTokens: p.usage.completionTokens + completionTokens,
-              costEstimate: p.usage.costEstimate + cost,
+      addOrUpdateProvider: (config) => set((state) => {
+        const exists = state.providers.some((p) => p.id === config.id);
+        if (exists) {
+          return {
+            providers: state.providers.map((p) =>
+              p.id === config.id ? { ...p, ...config } : p
+            ),
+          };
+        }
+        return {
+          providers: [
+            ...state.providers,
+            {
+              ...config,
+              isActive: false,
+              usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
             },
-          }
-        : p
-    ),
-  })),
+          ],
+        };
+      }),
 
-  clearUsage: (id) => set((state) => ({
-    providers: state.providers.map((p) =>
-      p.id === id
-        ? {
-            ...p,
-            usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
+      removeProvider: (id) => set((state) => ({
+        providers: state.providers.filter((p) => p.id !== id),
+      })),
+
+      setDefaultProvider: (id) => set((state) => ({
+        providers: state.providers.map((p) => ({
+          ...p,
+          isActive: p.id === id,
+        })),
+      })),
+
+      testLatency: async (id) => {
+        // Simulate API connection speed test
+        await new Promise((r) => setTimeout(r, 600));
+        const randomLatency = Math.floor(100 + Math.random() * 400);
+
+        set((state) => ({
+          providers: state.providers.map((p) =>
+            p.id === id ? { ...p, latency: randomLatency } : p
+          ),
+        }));
+
+        return randomLatency;
+      },
+
+      addUsage: (id, promptTokens, completionTokens, cost) => set((state) => ({
+        providers: state.providers.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                usage: {
+                  promptTokens: p.usage.promptTokens + promptTokens,
+                  completionTokens: p.usage.completionTokens + completionTokens,
+                  costEstimate: p.usage.costEstimate + cost,
+                },
+              }
+            : p
+        ),
+      })),
+
+      clearUsage: (id) => set((state) => ({
+        providers: state.providers.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
+              }
+            : p
+        ),
+      })),
+    }),
+    {
+      name: 'provider-storage',
+      merge: (persistedState: any, currentState: ProviderStore) => {
+        const persistedProviders = persistedState.providers || [];
+        const persistedMap = new Map(persistedProviders.map((p: any) => [p.id, p]));
+        
+        // Merge defaults with persisted overrides (like API keys and active status)
+        const mergedProviders = currentState.providers.map(defaultProvider => {
+          if (persistedMap.has(defaultProvider.id)) {
+            return { ...defaultProvider, ...persistedMap.get(defaultProvider.id) };
           }
-        : p
-    ),
-  })),
-}));
+          return defaultProvider;
+        });
+
+        // Retain any custom providers the user added themselves
+        const defaultMap = new Map(currentState.providers.map(p => [p.id, p]));
+        for (const p of persistedProviders) {
+          if (!defaultMap.has(p.id)) {
+            mergedProviders.push(p);
+          }
+        }
+
+        return {
+          ...currentState,
+          ...persistedState,
+          providers: mergedProviders
+        };
+      }
+    }
+  )
+);
 export type { ProviderStore };

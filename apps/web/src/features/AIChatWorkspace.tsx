@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, User, Bot, Sparkles, Activity, Bookmark } from 'lucide-react';
+import { Send, User, Bot, Sparkles, Activity, Bookmark, Copy, Key } from 'lucide-react';
 import { useAIChatStore } from '../stores/aiChatStore';
+import { useProviderStore } from '../stores/providerStore';
 
 export function AIChatWorkspace() {
   const { messages, isTyping, contextUsed, executeExplainCode, saveToMemory } = useAIChatStore();
+  const { providers, setDefaultProvider } = useProviderStore();
   const [input, setInput] = useState('');
   const [showContextView, setShowContextView] = useState(true);
+  const activeProvider = providers.find(p => p.isActive) || providers[0];
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -13,6 +16,10 @@ export function AIChatWorkspace() {
     // Scroll to bottom on new message
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setDefaultProvider(e.target.value);
+  };
 
   const handleSend = () => {
     if (!input.trim() || isTyping) return;
@@ -53,10 +60,17 @@ export function AIChatWorkspace() {
                 <div className={`p-3 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-[var(--color-accent-primary)] text-white' : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border-default)] text-[var(--color-text-primary)]'}`}>
                   {msg.content}
                 </div>
-                {msg.role === 'assistant' && msg.toolCallId && (
-                  <button onClick={() => saveToMemory(msg.toolCallId!)} className="self-start text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)] flex items-center gap-1 mt-1 cursor-pointer transition-colors">
-                    <Bookmark size={10} /> Save to Project Memory
-                  </button>
+                {msg.role === 'assistant' && (
+                  <div className="flex items-center gap-3 mt-1 self-start">
+                    {msg.toolCallId && (
+                      <button onClick={() => saveToMemory(msg.toolCallId!)} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)] flex items-center gap-1 cursor-pointer transition-colors">
+                        <Bookmark size={10} /> Save to Project Memory
+                      </button>
+                    )}
+                    <button onClick={() => navigator.clipboard.writeText(msg.content)} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)] flex items-center gap-1 cursor-pointer transition-colors" title="Copy Message">
+                      <Copy size={10} /> Copy
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -74,6 +88,21 @@ export function AIChatWorkspace() {
             </div>
           )}
           <div ref={endOfMessagesRef} />
+        </div>
+
+        {/* Quick API Key Settings */}
+        <div className="p-3 bg-[var(--color-bg-tertiary)] border-t border-[var(--color-border-default)] flex items-center gap-3">
+          <Key size={14} className="text-[var(--color-text-secondary)]" />
+          <span className="text-xs text-[var(--color-text-secondary)]">Active Provider:</span>
+          <select 
+            value={activeProvider?.id || ''} 
+            onChange={handleProviderChange}
+            className="flex-1 text-xs bg-[var(--color-bg-primary)] border border-[var(--color-border-default)] rounded px-2 py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)] cursor-pointer"
+          >
+            {providers.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Input Area */}

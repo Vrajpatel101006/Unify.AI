@@ -4,7 +4,8 @@ import { ShieldAlert, CheckCircle2, ShieldCheck, RefreshCw, Eye, EyeOff, Plus, T
 
 export function AIProviderWorkspace() {
   const { providers, addOrUpdateProvider, removeProvider, setDefaultProvider, testLatency, clearUsage } = useProviderStore();
-  const [selectedProvider, setSelectedProvider] = useState<ProviderConfig | null>(providers[0] || null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedProvider = providers.find(p => p.id === (selectedId ?? providers[0]?.id)) || providers[0] || null;
   const [apiKey, setApiKey] = useState(selectedProvider?.apiKey || '');
   const [baseUrl, setBaseUrl] = useState(selectedProvider?.baseUrl || '');
   const [showKey, setShowKey] = useState(false);
@@ -16,7 +17,7 @@ export function AIProviderWorkspace() {
   const [newName, setNewName] = useState('');
 
   const handleSelect = (p: ProviderConfig) => {
-    setSelectedProvider(p);
+    setSelectedId(p.id);
     setApiKey(p.apiKey);
     setBaseUrl(p.baseUrl || '');
     setShowKey(false);
@@ -176,7 +177,7 @@ export function AIProviderWorkspace() {
                     onClick={() => {
                       if (confirm('Delete this provider channel?')) {
                         removeProvider(selectedProvider.id);
-                        setSelectedProvider(providers[0] || null);
+                        setSelectedId(null);
                       }
                     }}
                     className="p-1.5 rounded text-[var(--color-status-error)] hover:bg-[var(--color-status-error)]/10 cursor-pointer"

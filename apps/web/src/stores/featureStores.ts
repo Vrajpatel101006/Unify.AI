@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { generateId } from '@unify/shared';
+import { useProviderStore } from './providerStore';
 
 // ==========================================
 // 1. Repository Intelligence Types
@@ -221,9 +222,8 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
     analyzeFile: async (filePath) => {
       set((state) => ({ codeIntel: { ...state.codeIntel, isAnalyzing: true, analysisError: null } }));
       try {
-        const { useProviderStore } = await import('./providerStore');
         const providers = useProviderStore.getState().providers;
-        const provider = providers.find(p => p.isActive) || providers[0];
+        const provider = providers.find((p: any) => p.isActive) || providers[0];
         
         if (!provider || !provider.apiKey) {
           throw new Error('No AI Provider API key configured. Please set one up first.');

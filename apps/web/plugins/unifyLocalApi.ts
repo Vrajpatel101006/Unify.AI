@@ -8,7 +8,7 @@ export function unifyLocalApiPlugin(): Plugin {
     name: 'unify-local-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith('/api/local/git')) {
+        if (!req.url?.startsWith('/api/local')) {
           return next();
         }
 

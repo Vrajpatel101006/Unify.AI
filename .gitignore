@@ -26,9 +26,20 @@ obj/
 
 # Environment
 .env
+.env.*
+*.env
 .env.local
 .env.*.local
 !.env.example
+
+# Security & API Keys
+secrets/
+keys/
+*.key
+*.pem
+credentials.json
+api_keys.json
+client_secret.json
 
 # OS
 .DS_Store

@@ -14,7 +14,7 @@ export class PromptEngine implements IPromptEngine {
       id: 'explain-code',
       name: 'Explain Code',
       category: 'chat',
-      userPromptTemplate: 'Please explain the following code or concept in the context of our repository:\n\n{{question}}',
+      userPromptTemplate: 'Please provide a brief, concise explanation of the following code or concept in the context of our repository. Avoid excessive line-by-line detail unless necessary:\n\n{{question}}',
       variables: [
         { name: 'question', description: 'The question or code to explain', required: true }
       ],
