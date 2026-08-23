@@ -6,7 +6,7 @@ export class GroqProvider implements IAIProvider {
   readonly capabilities: AICapability[] = ['chat', 'code'];
   
   private readonly _apiKey: string;
-  private readonly _defaultModel = 'openai/gpt-oss-120b';
+  private readonly _defaultModel = 'llama-3.3-70b-versatile';
 
   constructor(apiKey: string) {
     this._apiKey = apiKey;
@@ -76,28 +76,36 @@ export class GroqProvider implements IAIProvider {
   async getModels(): Promise<AIModel[]> {
     return [
       {
-        id: 'openai/gpt-oss-120b',
-        name: 'GPT OSS 120B',
+        id: 'llama-3.3-70b-versatile',
+        name: 'Llama 3.3 70B (Versatile)',
         provider: this.id,
         capabilities: ['chat', 'code'],
         maxTokens: 8192,
         contextWindow: 128000
       },
       {
-        id: 'openai/gpt-oss-20b',
-        name: 'GPT OSS 20B',
+        id: 'llama-3.1-8b-instant',
+        name: 'Llama 3.1 8B (Instant)',
         provider: this.id,
         capabilities: ['chat', 'code'],
         maxTokens: 8192,
         contextWindow: 128000
       },
       {
-        id: 'openai/gpt-oss-safeguard-20b',
-        name: 'GPT OSS Safeguard 20B',
+        id: 'mixtral-8x7b-32768',
+        name: 'Mixtral 8x7B (MoE)',
         provider: this.id,
-        capabilities: ['chat'],
+        capabilities: ['chat', 'code'],
         maxTokens: 8192,
-        contextWindow: 128000
+        contextWindow: 32768
+      },
+      {
+        id: 'gemma2-9b-it',
+        name: 'Gemma 2 9B (Instruct)',
+        provider: this.id,
+        capabilities: ['chat', 'code'],
+        maxTokens: 8192,
+        contextWindow: 8192
       }
     ];
   }

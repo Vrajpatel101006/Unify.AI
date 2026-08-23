@@ -74,3 +74,11 @@ npm-debug.log*
 *.key
 *.cert
 appsettings.Development.json
+
+# Test / Guest Accounts Configurations
+test_accounts.json
+demo_credentials.json
+.test_user_profile
+users_db.json
+
+

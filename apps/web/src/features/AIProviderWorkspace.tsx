@@ -57,7 +57,7 @@ export function AIProviderWorkspace() {
       await testLatency(selectedProvider.id);
       // Automatically update selection to show fresh latency
       const updated = useProviderStore.getState().providers.find((p) => p.id === selectedProvider.id);
-      if (updated) setSelectedProvider(updated);
+      if (updated) handleSelect(updated);
     } catch {
       alert('Connection test failed.');
     } finally {

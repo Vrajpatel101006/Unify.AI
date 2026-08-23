@@ -1,17 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFeatureStore, type ApiEndpoint } from '../stores/featureStores';
-import { Plus, Send } from 'lucide-react';
+import { Plus, Send, Trash2, Edit, Save } from 'lucide-react';
 
 export function ApiWorkspace() {
   const { api } = useFeatureStore();
-  const { endpoints, envVariables, activeEnv, setActiveEnv, addEndpoint } = api;
+  const { endpoints, envVariables, activeEnv, setActiveEnv, addEndpoint, deleteEndpoint, updateEndpoint } = api;
 
   const [selectedEndpoint, setSelectedEndpoint] = useState<ApiEndpoint | null>(endpoints[0] || null);
 
+  // Sync selected endpoint when list changes
+  useEffect(() => {
+    if (selectedEndpoint) {
+      const exists = endpoints.find(e => e.id === selectedEndpoint.id);
+      if (!exists) {
+        setSelectedEndpoint(endpoints[0] || null);
+      }
+    } else if (endpoints.length > 0) {
+      setSelectedEndpoint(endpoints[0]);
+    }
+  }, [endpoints, selectedEndpoint]);
+
   // Parameter editor inputs
   const [paramsInput, setParamsInput] = useState<Record<string, string>>({});
-  const [responseOutput, setResponseOutput] = useState(selectedEndpoint?.mockResponse || '');
+  const [responseOutput, setResponseOutput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Edit Mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editMethod, setEditMethod] = useState<'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'>('GET');
+  const [editPath, setEditPath] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editMockResponse, setEditMockResponse] = useState('');
 
   // New endpoint modal
   const [showAdd, setShowAdd] = useState(false);
@@ -22,6 +41,7 @@ export function ApiWorkspace() {
   const handleSelect = (ep: ApiEndpoint) => {
     setSelectedEndpoint(ep);
     setResponseOutput(ep.mockResponse);
+    setIsEditing(false);
     const inputs: Record<string, string> = {};
     ep.params.forEach((p) => {
       inputs[p.key] = p.value || '';
@@ -30,12 +50,11 @@ export function ApiWorkspace() {
   };
 
   const handleSend = () => {
+    if (!selectedEndpoint) return;
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      if (selectedEndpoint) {
-        setResponseOutput(selectedEndpoint.mockResponse);
-      }
+      setResponseOutput(selectedEndpoint.mockResponse);
     }, 500);
   };
 
@@ -54,6 +73,34 @@ export function ApiWorkspace() {
     setNewDesc('');
   };
 
+  const handleStartEdit = () => {
+    if (!selectedEndpoint) return;
+    setEditMethod(selectedEndpoint.method);
+    setEditPath(selectedEndpoint.path);
+    setEditDesc(selectedEndpoint.description);
+    setEditMockResponse(selectedEndpoint.mockResponse);
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!selectedEndpoint) return;
+    updateEndpoint(selectedEndpoint.id, {
+      method: editMethod,
+      path: editPath,
+      description: editDesc,
+      mockResponse: editMockResponse
+    });
+    setIsEditing(false);
+    // Refresh selected endpoint values
+    setTimeout(() => {
+      const updated = useFeatureStore.getState().api.endpoints.find(e => e.id === selectedEndpoint.id);
+      if (updated) {
+        setSelectedEndpoint(updated);
+        setResponseOutput(updated.mockResponse);
+      }
+    }, 50);
+  };
+
   return (
     <div className="flex h-full w-full bg-[var(--color-bg-primary)] select-text">
       {/* Left Pane: API Collections */}
@@ -65,49 +112,70 @@ export function ApiWorkspace() {
           <button
             onClick={() => setShowAdd(true)}
             className="p-1 rounded text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)] cursor-pointer"
+            title="Add New Endpoint"
           >
             <Plus size={14} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
-          {endpoints.map((ep) => {
-            const isGet = ep.method === 'GET';
-            const isPost = ep.method === 'POST';
+          {endpoints.length === 0 ? (
+            <div className="text-[11px] text-[var(--color-text-muted)] italic text-center py-4">
+              No endpoints. Click + to add.
+            </div>
+          ) : (
+            endpoints.map((ep) => {
+              const isGet = ep.method === 'GET';
+              const isPost = ep.method === 'POST';
+              const isSelected = selectedEndpoint?.id === ep.id;
 
-            return (
-              <div
-                key={ep.id}
-                onClick={() => handleSelect(ep)}
-                className={`flex items-center gap-2 rounded-lg p-2.5 cursor-pointer transition-all ${
-                  selectedEndpoint?.id === ep.id
-                    ? 'bg-[var(--color-bg-hover)] border-l-2 border-[var(--color-accent-primary)]'
-                    : 'hover:bg-[var(--color-bg-secondary)]'
-                }`}
-              >
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                  isGet ? 'bg-[var(--color-status-info)]/15 text-[var(--color-status-info)]' : isPost ? 'bg-[var(--color-status-success)]/15 text-[var(--color-status-success)]' : 'bg-[var(--color-status-warning)]/15 text-[var(--color-status-warning)]'
-                }`}>
-                  {ep.method}
-                </span>
-                <div className="truncate min-w-0">
-                  <div className="text-xs font-semibold truncate font-mono text-[var(--color-text-primary)]">
-                    {ep.path}
+              return (
+                <div
+                  key={ep.id}
+                  onClick={() => handleSelect(ep)}
+                  className={`flex items-center justify-between gap-2 rounded-lg p-2.5 cursor-pointer transition-all group ${
+                    isSelected
+                      ? 'bg-[var(--color-bg-hover)] border-l-2 border-[var(--color-accent-primary)]'
+                      : 'hover:bg-[var(--color-bg-secondary)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      isGet ? 'bg-[var(--color-status-info)]/15 text-[var(--color-status-info)]' : isPost ? 'bg-[var(--color-status-success)]/15 text-[var(--color-status-success)]' : 'bg-[var(--color-status-warning)]/15 text-[var(--color-status-warning)]'
+                    }`}>
+                      {ep.method}
+                    </span>
+                    <div className="truncate min-w-0">
+                      <div className="text-xs font-semibold truncate font-mono text-[var(--color-text-primary)]">
+                        {ep.path}
+                      </div>
+                      <div className="text-[9px] text-[var(--color-text-muted)] truncate mt-0.5">
+                        {ep.description}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[9px] text-[var(--color-text-muted)] truncate mt-0.5">
-                    {ep.description}
-                  </div>
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteEndpoint(ep.id);
+                    }}
+                    title="Delete endpoint"
+                    className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-status-error)] hover:bg-[var(--color-bg-hover)] opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
-      {/* Middle Pane: Endpoint Editor */}
+      {/* Middle Pane: Endpoint Editor / Edit Form */}
       {showAdd ? (
         <div className="flex-1 p-6 flex flex-col gap-4 max-w-md">
-          <h3 className="text-sm font-semibold text-[var(--color-accent-primary)]">Add Endpoint Routing</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent-primary)]">Add Endpoint Routing</h3>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase font-bold text-[var(--color-text-secondary)]">HTTP Method</label>
             <select
@@ -156,6 +224,66 @@ export function ApiWorkspace() {
             </button>
           </div>
         </div>
+      ) : isEditing && selectedEndpoint ? (
+        // Endpoint Edit Form
+        <div className="flex-1 p-6 flex flex-col gap-4 max-w-xl overflow-y-auto">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent-primary)] flex items-center gap-1.5">
+            <Edit size={14} /> Edit Endpoint details
+          </h3>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] uppercase font-bold text-[var(--color-text-secondary)]">HTTP Method</label>
+            <select
+              value={editMethod}
+              onChange={(e) => setEditMethod(e.target.value as any)}
+              className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none"
+            >
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] uppercase font-bold text-[var(--color-text-secondary)]">Path URL</label>
+            <input
+              type="text"
+              value={editPath}
+              onChange={(e) => setEditPath(e.target.value)}
+              className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] uppercase font-bold text-[var(--color-text-secondary)]">Description</label>
+            <input
+              type="text"
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 flex-1 min-h-[160px]">
+            <label className="text-[10px] uppercase font-bold text-[var(--color-text-secondary)]">Mock Response Console Payload (JSON)</label>
+            <textarea
+              value={editMockResponse}
+              onChange={(e) => setEditMockResponse(e.target.value)}
+              className="flex-1 rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-2 text-xs font-mono text-[var(--color-text-primary)] focus:outline-none resize-none min-h-[120px]"
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-3 border-t border-[var(--color-border-default)]">
+            <button
+              onClick={() => setIsEditing(false)}
+              className="rounded border border-[var(--color-border-default)] px-3.5 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              className="rounded bg-[var(--color-accent-primary)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] flex items-center gap-1.5 cursor-pointer"
+            >
+              <Save size={12} /> Save Changes
+            </button>
+          </div>
+        </div>
       ) : selectedEndpoint ? (
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header Panel URL Bar */}
@@ -167,10 +295,17 @@ export function ApiWorkspace() {
                 </h3>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleStartEdit}
+                  title="Edit details"
+                  className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit size={12} /> Edit
+                </button>
                 <select
                   value={activeEnv}
                   onChange={(e) => setActiveEnv(e.target.value)}
-                  className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-2.5 py-1 text-xs text-[var(--color-text-primary)] focus:outline-none"
+                  className="rounded border border-[var(--color-border-default)] bg-[var(--color-bg-secondary)] px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] focus:outline-none cursor-pointer"
                 >
                   <option value="Development">Dev Server</option>
                   <option value="Production">Prod Server</option>
@@ -227,7 +362,7 @@ export function ApiWorkspace() {
             )}
 
             {/* Parameters Config list */}
-            {selectedEndpoint.params.length > 0 && (
+            {selectedEndpoint.params && selectedEndpoint.params.length > 0 && (
               <div>
                 <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
                   Request Parameters

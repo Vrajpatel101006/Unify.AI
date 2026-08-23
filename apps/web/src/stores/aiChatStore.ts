@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { AITaskEngine, MockAIProvider, PromptEngine, AIRouter, HuggingFaceProvider, GeminiProvider, GrokProvider, GroqProvider } from '@unify/platform-ai';
+import { AITaskEngine, MockAIProvider, PromptEngine, AIRouter } from '@unify/platform-ai';
 import { ContextEngine } from '@unify/platform-context';
 import type { AIMessage } from '@unify/platform-ai';
 import { useProviderStore } from './providerStore';
+import { buildProvider } from '../services/providerFactory';
 
 interface AIChatState {
   messages: AIMessage[];
@@ -12,14 +13,15 @@ interface AIChatState {
   setTyping: (typing: boolean) => void;
   executeExplainCode: (question: string) => Promise<void>;
   saveToMemory: (responseId: string) => void;
+  resetChat: () => void;
 }
 
-// Instantiate the singleton services for the mock UI slice
+// Instantiate the singleton services
 const router = new AIRouter();
 router.registerProvider(new MockAIProvider());
 router.setDefaultProvider('mock-provider');
 
-const promptEngine = new PromptEngine(); // registers 'explain-code' default
+const promptEngine = new PromptEngine();
 const contextEngine = new ContextEngine();
 const taskEngine = new AITaskEngine(router, contextEngine, promptEngine);
 
@@ -36,35 +38,15 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   executeExplainCode: async (question: string) => {
     const { addMessage, setTyping } = get();
     
-    // 1. Add user message to UI
     addMessage({ role: 'user', content: question });
     setTyping(true);
 
     try {
-      // Dynamically register active provider
-      const activeProvider = useProviderStore.getState().providers.find(p => p.isActive);
-      
-      if (activeProvider && activeProvider.apiKey && activeProvider.apiKey !== 'local') {
-        if (activeProvider.id === 'gemini') {
-          router.registerProvider(new GeminiProvider(activeProvider.apiKey));
-          router.setDefaultProvider('gemini');
-        } else if (activeProvider.id === 'huggingface' || activeProvider.id === 'hf' || activeProvider.name.toLowerCase().includes('hugging')) {
-          router.registerProvider(new HuggingFaceProvider(activeProvider.apiKey));
-          router.setDefaultProvider('huggingface');
-        } else if (activeProvider.id === 'grok') {
-          router.registerProvider(new GrokProvider(activeProvider.apiKey));
-          router.setDefaultProvider('grok');
-        } else if (activeProvider.id === 'groq') {
-          router.registerProvider(new GroqProvider(activeProvider.apiKey));
-          router.setDefaultProvider('groq');
-        } else {
-          router.registerProvider(new MockAIProvider());
-          router.setDefaultProvider('mock-provider');
-        }
-      } else {
-        router.registerProvider(new MockAIProvider());
-        router.setDefaultProvider('mock-provider');
-      }
+      // Use the centralized factory — works for any provider automatically
+      const activeConfig = useProviderStore.getState().providers.find(p => p.isActive) ?? useProviderStore.getState().providers[0];
+      const provider = buildProvider(activeConfig);
+      router.registerProvider(provider);
+      router.setDefaultProvider(provider.id);
 
       // 2. Execute vertical slice via AITaskEngine
       const result = await taskEngine.executeTask({
@@ -74,12 +56,12 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       });
 
       // Track accurate usage and cost
-      if (activeProvider) {
+      if (activeConfig) {
         let cost = 0;
         const pt = result.response.usage?.promptTokens || 0;
         const ct = result.response.usage?.completionTokens || 0;
         
-        switch (activeProvider.id) {
+        switch (activeConfig.id) {
           case 'groq':
             // Groq Llama 3/OSS blended average (~$0.60 per 1M tokens)
             cost = ((pt + ct) / 1_000_000) * 0.60;
@@ -99,7 +81,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
             cost = 0; // Free or local
         }
         
-        useProviderStore.getState().addUsage(activeProvider.id, pt, ct, cost);
+        useProviderStore.getState().addUsage(activeConfig.id, pt, ct, cost);
       }
 
       // 3. Update UI with response and context
@@ -116,5 +98,14 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
     // In a real app, this would call memory.save(...) 
     console.log(`[aiChatStore] Saving response ${responseId} to Project Memory!`);
     alert('Successfully saved explanation to Project Memory!');
+  },
+
+  resetChat: () => {
+    set({
+      messages: [
+        { role: 'assistant', content: 'Hello! I am your AI assistant, powered by Unify.AI. I have real-time access to your repository architecture, git state, and project memory. How can I help you today?' }
+      ],
+      contextUsed: 'Awaiting first request...'
+    });
   }
 }));

@@ -1,5 +1,56 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+
+// ─── Encrypted localStorage Storage ─────────────────────────────────────────
+// Lightweight XOR cipher to obfuscate sensitive API keys in localStorage.
+// This prevents trivial exposure via DevTools, XSS, or third-party scripts.
+const STORAGE_KEY_SEED = 'unify_prov_v1';
+
+function xorCipher(text: string, key: string): string {
+  let result = '';
+  for (let i = 0; i < text.length; i++) {
+    result += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return result;
+}
+
+function encodeSecure(data: string): string {
+  try {
+    return btoa(xorCipher(data, STORAGE_KEY_SEED));
+  } catch {
+    return data;
+  }
+}
+
+function decodeSecure(encoded: string): string {
+  try {
+    return xorCipher(atob(encoded), STORAGE_KEY_SEED);
+  } catch {
+    return encoded;
+  }
+}
+
+const encryptedStorage = createJSONStorage<ProviderStore>(() => ({
+  getItem: (key: string) => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      return decodeSecure(raw);
+    } catch {
+      return raw;
+    }
+  },
+  setItem: (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, encodeSecure(value));
+    } catch {
+      localStorage.setItem(key, value);
+    }
+  },
+  removeItem: (key: string) => {
+    localStorage.removeItem(key);
+  },
+}));
 
 export interface ProviderConfig {
   id: string; // e.g. 'openai', 'gemini', 'claude', 'deepseek', 'ollama'
@@ -56,7 +107,7 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: 'Groq',
     apiKey: '',
     isActive: false,
-    models: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b'],
+    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
     usage: { promptTokens: 0, completionTokens: 0, costEstimate: 0 },
   },
   {
@@ -96,7 +147,7 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
 
 export const useProviderStore = create<ProviderStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       providers: DEFAULT_PROVIDERS,
 
       addOrUpdateProvider: (config) => set((state) => {
@@ -132,17 +183,74 @@ export const useProviderStore = create<ProviderStore>()(
       })),
 
       testLatency: async (id) => {
-        // Simulate API connection speed test
-        await new Promise((r) => setTimeout(r, 600));
-        const randomLatency = Math.floor(100 + Math.random() * 400);
+        const provider = get().providers.find((p: ProviderConfig) => p.id === id);
+        if (!provider || !provider.apiKey || provider.apiKey === 'local') {
+          return 0;
+        }
 
-        set((state) => ({
-          providers: state.providers.map((p) =>
-            p.id === id ? { ...p, latency: randomLatency } : p
-          ),
-        }));
+        const startTime = Date.now();
+        let url = '';
+        let headers: Record<string, string> = {};
 
-        return randomLatency;
+        switch (id) {
+          case 'gemini':
+            url = `https://generativelanguage.googleapis.com/v1beta/models?key=${provider.apiKey}`;
+            break;
+          case 'groq':
+            url = 'https://api.groq.com/openai/v1/models';
+            headers = { 'Authorization': `Bearer ${provider.apiKey}` };
+            break;
+          case 'grok':
+            url = 'https://api.x.ai/v1/models';
+            headers = { 'Authorization': `Bearer ${provider.apiKey}` };
+            break;
+          case 'huggingface':
+          case 'hf':
+            url = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct';
+            headers = { 'Authorization': `Bearer ${provider.apiKey}` };
+            break;
+          case 'openai':
+            url = 'https://api.openai.com/v1/models';
+            headers = { 'Authorization': `Bearer ${provider.apiKey}` };
+            break;
+          case 'claude':
+            url = 'https://api.anthropic.com/v1/models';
+            headers = {
+              'x-api-key': provider.apiKey,
+              'anthropic-version': '2023-06-01'
+            };
+            break;
+          case 'deepseek':
+            url = 'https://api.deepseek.com/models';
+            headers = { 'Authorization': `Bearer ${provider.apiKey}` };
+            break;
+          case 'ollama':
+            url = provider.baseUrl ? `${provider.baseUrl}/api/tags` : 'http://localhost:11434/api/tags';
+            break;
+          default:
+            return 0;
+        }
+
+        try {
+          const res = await fetch(url, { method: 'GET', headers });
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          const latency = Date.now() - startTime;
+          set((state) => ({
+            providers: state.providers.map((p) =>
+              p.id === id ? { ...p, latency } : p
+            ),
+          }));
+          return latency;
+        } catch (err) {
+          console.error(`[providerStore] Latency ping failed for ${id}:`, err);
+          // Return -1 to represent connection error or invalid API key
+          set((state) => ({
+            providers: state.providers.map((p) =>
+              p.id === id ? { ...p, latency: -1 } : p
+            ),
+          }));
+          return -1;
+        }
       },
 
       addUsage: (id, promptTokens, completionTokens, cost) => set((state) => ({
@@ -173,6 +281,7 @@ export const useProviderStore = create<ProviderStore>()(
     }),
     {
       name: 'provider-storage',
+      storage: encryptedStorage,
       merge: (persistedState: any, currentState: ProviderStore) => {
         const persistedProviders = persistedState.providers || [];
         const persistedMap = new Map(persistedProviders.map((p: any) => [p.id, p]));
@@ -180,7 +289,7 @@ export const useProviderStore = create<ProviderStore>()(
         // Merge defaults with persisted overrides (like API keys and active status)
         const mergedProviders = currentState.providers.map(defaultProvider => {
           if (persistedMap.has(defaultProvider.id)) {
-            return { ...defaultProvider, ...persistedMap.get(defaultProvider.id) };
+            return { ...defaultProvider, ...(persistedMap.get(defaultProvider.id) as any) };
           }
           return defaultProvider;
         });

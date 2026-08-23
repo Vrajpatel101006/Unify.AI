@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useFeatureStore, type DocFile } from '../stores/featureStores';
-import { FileText, Sparkles, Download, Copy, Check, Save, RefreshCw } from 'lucide-react';
+import { useProjectStore } from '../stores/projectStore';
+import { FileText, Sparkles, Download, Copy, Check, Save, RefreshCw, FolderOpen, ChevronRight } from 'lucide-react';
 
 export function DocumentationWorkspace() {
   const { doc } = useFeatureStore();
-  const { docs, generateDoc, updateDocContent } = doc;
+  const { docs, generateDoc, updateDocContent, loadDocFileContent } = doc;
+  const { projectFiles } = useProjectStore();
 
   const [activeDoc, setActiveDoc] = useState<DocFile | null>(docs[0] || null);
   const [docContent, setDocContent] = useState(activeDoc?.content || '');
@@ -21,17 +23,35 @@ export function DocumentationWorkspace() {
     setCopied(false);
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setGenerating(true);
-    setTimeout(() => {
-      generateDoc(docType, docContextInput);
-      setGenerating(false);
-      // Retrieve the generated document
-      const freshDocs = useFeatureStore.getState().doc.docs;
-      const generated = freshDocs.find((d) => d.type === docType);
-      if (generated) handleSelect(generated);
-      alert('Documentation compiled successfully.');
-    }, 1200);
+    await generateDoc(docType, docContextInput);
+    setGenerating(false);
+    // Retrieve the generated document
+    const freshDocs = useFeatureStore.getState().doc.docs;
+    const generated = freshDocs.find((d) => d.type === docType);
+    if (generated) handleSelect(generated);
+  };
+
+  const handleLoadProjectDoc = async (filePath: string) => {
+    try {
+      const res = await fetch('/api/local/files/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const title = filePath.split(/[\/\\]/).pop() || filePath;
+        loadDocFileContent(title, data.content);
+        // After loading, find the doc and select it
+        setTimeout(() => {
+          const freshDocs = useFeatureStore.getState().doc.docs;
+          const loaded = freshDocs.find(d => d.title === title);
+          if (loaded) handleSelect(loaded);
+        }, 50);
+      }
+    } catch { /* ignore */ }
   };
 
   const handleSave = () => {
@@ -102,10 +122,29 @@ export function DocumentationWorkspace() {
           </button>
         </div>
 
-        {/* Document files list */}
-        <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
+          {/* Project Docs from opened folder */}
+          {projectFiles.docFiles.length > 0 && (
+            <div className="border-t border-[var(--color-border-default)] p-2 flex flex-col gap-1">
+              <div className="text-[9px] font-bold uppercase text-[var(--color-text-muted)] px-2 mb-1 flex items-center gap-1">
+                <FolderOpen size={10} /> Project Docs
+              </div>
+              {projectFiles.docFiles.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => handleLoadProjectDoc(f)}
+                  className="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-left text-[10px] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-accent-primary)] cursor-pointer transition-all"
+                >
+                  <ChevronRight size={10} className="shrink-0" />
+                  <span className="truncate">{f.split(/[\/\\]/).pop()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Workspace Docs List */}
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
           <div className="text-[10px] text-[var(--color-text-muted)] font-semibold uppercase px-2 mb-1">
-            Document Files
+            Workspace Documents
           </div>
           {docs.map((d) => (
             <div
@@ -126,7 +165,7 @@ export function DocumentationWorkspace() {
               </div>
             </div>
           ))}
-        </div>
+          </div>
       </div>
 
       {/* Right Pane: Markdown Content Editor */}

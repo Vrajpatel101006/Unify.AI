@@ -70,29 +70,20 @@ interface ProjectStore {
 
   hfToken: string | null;
   setHfToken: (token: string | null) => void;
+
+  projectFiles: { sqlFiles: string[]; docFiles: string[]; codeFiles: string[] };
+  scanProjectFiles: (projectPath: string) => Promise<void>;
 }
 
-const DEFAULT_CONNECTIONS: WorkspaceConnection[] = [
-  { id: 'db-local', name: 'PostgreSQL Local', type: 'database', status: 'connected', detail: 'localhost:5432/unify' },
-  { id: 'db-cache', name: 'SQLite Workspace Cache', type: 'database', status: 'connected', detail: 'Local Disk: sqlite.db' },
-  { id: 'api-health', name: 'Health Endpoint API', type: 'api', status: 'running', detail: 'http://localhost:5000/api/health' },
-];
-
-const DEFAULT_NOTES: AIMemoryNote[] = [
-  { id: 'n-1', title: 'System Environment Settings', content: 'Ensure postgresql port is mapped to localhost:5432 for database connection test validation.', updatedAt: Date.now() },
-  { id: 'n-2', title: 'AI Provider Latency Checklist', content: 'Gemini 2.5 flash is preferred for sql/prompt builders tasks, use Claude for advanced code analyzer logic refactoring.', updatedAt: Date.now() - 360000 },
-];
 
 export const useProjectStore = create<ProjectStore>()(
   persist(
     (set, get) => ({
       currentProject: null,
-      recentProjects: [
-        { id: 'unify-core', name: 'Unify.AI Workspace', path: 'C:\\Users\\dell\\Desktop\\Unify.AI', gitBranch: 'main' },
-        { id: 'react-app', name: 'Product Store web app', path: 'C:\\Users\\dell\\Desktop\\ProductStore', gitBranch: 'master' },
-      ],
-      connections: DEFAULT_CONNECTIONS,
-      notes: DEFAULT_NOTES,
+      projectFiles: { sqlFiles: [], docFiles: [], codeFiles: [] },
+      recentProjects: [],
+      connections: [],
+      notes: [],
 
       setCurrentProject: (proj) => set(() => ({ currentProject: proj })),
       
@@ -170,6 +161,8 @@ export const useProjectStore = create<ProjectStore>()(
 
           set({ currentProject: proj });
           get().addRecentProject({ id: proj.id, name: proj.name, path: proj.path, gitBranch: proj.gitBranch });
+          // Automatically scan and classify project files
+          get().scanProjectFiles(path);
         } catch (err) {
           console.error('Failed to open project', err);
         }
@@ -270,6 +263,21 @@ export const useProjectStore = create<ProjectStore>()(
       
       hfToken: null,
       setHfToken: (token) => set({ hfToken: token }),
+
+      scanProjectFiles: async (projectPath: string) => {
+        try {
+          const res = await fetch('/api/local/files/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectPath })
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          set({ projectFiles: { sqlFiles: data.sqlFiles || [], docFiles: data.docFiles || [], codeFiles: data.codeFiles || [] } });
+        } catch (err) {
+          console.error('[projectStore] Failed to scan project files', err);
+        }
+      },
       
       fetchGithubRepos: async () => {
         const token = get().githubToken;

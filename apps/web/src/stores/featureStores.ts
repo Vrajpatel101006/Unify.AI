@@ -41,6 +41,7 @@ export interface DiagnosticItem {
   severity: 'error' | 'warning' | 'info';
   message: string;
   suggestion: string;
+  codeSnippet?: string;
   targetContent?: string;
   replacementContent?: string;
 }
@@ -56,15 +57,14 @@ export interface TodoItem {
 export interface CodeIntelState {
   diagnostics: DiagnosticItem[];
   todos: TodoItem[];
-  selectedFileAnalysis: {
-    complexityScore: number;
-    linesOfCode: number;
-    functionsCount: number;
-    grade: 'A' | 'B' | 'C' | 'D' | 'F';
-  } | null;
   isAnalyzing: boolean;
   analysisError: string | null;
+  // Folder mode
+  analyzeMode: 'file' | 'folder';
+  setAnalyzeMode: (mode: 'file' | 'folder') => void;
+  folderProgress: { total: number; done: number };
   analyzeFile: (filePath: string) => Promise<void>;
+  analyzeFolder: (filePaths: string[]) => Promise<void>;
   applyQuickFix: (diagnosticId: string, filePath: string) => Promise<void>;
   toggleTodo: (id: string) => void;
   removeTodo: (id: string) => void;
@@ -92,7 +92,7 @@ export interface SqlQueryLog {
 export interface DatabaseState {
   tables: TableSchema[];
   queryLogs: SqlQueryLog[];
-  executeQuery: (query: string) => SqlQueryLog;
+  executeQuery: (query: string) => Promise<SqlQueryLog>;
   clearQueryLogs: () => void;
 }
 
@@ -116,6 +116,8 @@ export interface ApiState {
   setEnvVariable: (key: string, value: string) => void;
   setActiveEnv: (env: string) => void;
   addEndpoint: (endpoint: Omit<ApiEndpoint, 'id'>) => void;
+  deleteEndpoint: (id: string) => void;
+  updateEndpoint: (id: string, updated: Partial<ApiEndpoint>) => void;
 }
 
 // ==========================================
@@ -131,8 +133,9 @@ export interface DocFile {
 
 export interface DocState {
   docs: DocFile[];
-  generateDoc: (type: DocFile['type'], context?: string) => void;
+  generateDoc: (type: DocFile['type'], context?: string) => Promise<void>;
   updateDocContent: (id: string, content: string) => void;
+  loadDocFileContent: (title: string, content: string) => void;
 }
 
 // ==========================================
@@ -149,23 +152,13 @@ interface FeatureStore {
 export const useFeatureStore = create<FeatureStore>((set, get) => ({
   // 1. Repository Intelligence State
   repoIntel: {
-    languages: [
-      { language: 'TypeScript', percentage: 48, color: '#3178c6', filesCount: 64 },
-      { language: 'C# (ASP.NET Core)', percentage: 32, color: '#178600', filesCount: 42 },
-      { language: 'CSS/HTML', percentage: 12, color: '#563d7c', filesCount: 15 },
-      { language: 'JavaScript', percentage: 8, color: '#f1e05a', filesCount: 10 },
-    ],
-    dependencies: [
-      { id: 'apps/web', label: 'apps/web (React)', type: 'project', dependsOn: ['packages/kernel', 'packages/shared'] },
-      { id: 'apps/api', label: 'apps/api (ASP.NET)', type: 'project', dependsOn: ['packages/shared'] },
-      { id: 'packages/kernel', label: 'packages/kernel', type: 'package', dependsOn: ['packages/shared'] },
-      { id: 'packages/shared', label: 'packages/shared', type: 'package', dependsOn: [] },
-    ],
-    detectedFrameworks: ['React', 'Vite', 'Tailwind CSS v4', 'ASP.NET Core', 'Zustand', 'Entity Framework Core'],
-    totalFiles: 131,
-    totalLines: 15430,
-    architectureType: 'Monorepo (Clean Architecture & Modular Plugins)',
-    scanStatus: 'completed',
+    languages: [],
+    dependencies: [],
+    detectedFrameworks: [],
+    totalFiles: 0,
+    totalLines: 0,
+    architectureType: 'Unknown — run a scan to detect',
+    scanStatus: 'idle',
     triggerScan: async () => {
       set((state) => ({ repoIntel: { ...state.repoIntel, scanStatus: 'scanning' } }));
       await new Promise((r) => setTimeout(r, 1500));
@@ -173,58 +166,26 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
         repoIntel: {
           ...state.repoIntel,
           scanStatus: 'completed',
-          totalFiles: state.repoIntel.totalFiles + 3,
-          totalLines: state.repoIntel.totalLines + 450,
         },
       }));
     },
   },
 
   // 2. Code Intelligence State
-  codeIntel: {
-    diagnostics: [
-      {
-        id: 'd-1',
-        filePath: 'apps/web/src/layouts/AppShell.tsx',
-        line: 12,
-        type: 'unused-import',
-        severity: 'info',
-        message: 'Unused import matching React hooks.',
-        suggestion: 'Remove import { useEffect } from "react";'
-      },
-      {
-        id: 'd-2',
-        filePath: 'packages/platform/storage/src/WorkspaceDatabase.ts',
-        line: 45,
-        type: 'complexity',
-        severity: 'warning',
-        message: 'Cognitive complexity is high (14). Nested loops detected in transaction runner.',
-        suggestion: 'Refactor transactions handler to split logic into utility subfunctions.'
-      },
-      {
-        id: 'd-3',
-        filePath: 'apps/web/src/App.tsx',
-        line: 220,
-        type: 'dead-code',
-        severity: 'warning',
-        message: 'Unused layout switcher logic route helper function.',
-        suggestion: 'Safe to delete redundant legacy render routes helper.'
-      }
-    ],
-    todos: [
-      { id: 't-1', filePath: 'packages/kernel/src/WorkspaceLifecycle.ts', line: 15, text: 'TODO: Add secure transaction verification before shutdown.', completed: false },
-      { id: 't-2', filePath: 'apps/api/Controllers/HealthController.cs', line: 8, text: 'TODO: Connect live db migration checker status pipeline checks.', completed: true },
-      { id: 't-3', filePath: 'packages/platform/ai/src/AIRouter.ts', line: 52, text: 'TODO: Configure Ollama fallback timeout models.', completed: false },
-    ],
-    selectedFileAnalysis: null,
+    codeIntel: {
+    diagnostics: [],
+    todos: [],
     isAnalyzing: false,
     analysisError: null,
+    analyzeMode: 'file' as 'file' | 'folder',
+    folderProgress: { total: 0, done: 0 },
+    setAnalyzeMode: (mode) => set((state) => ({ codeIntel: { ...state.codeIntel, analyzeMode: mode } })),
     analyzeFile: async (filePath) => {
       set((state) => ({ codeIntel: { ...state.codeIntel, isAnalyzing: true, analysisError: null } }));
       try {
         const providers = useProviderStore.getState().providers;
         const provider = providers.find((p: any) => p.isActive) || providers[0];
-        
+
         if (!provider || !provider.apiKey) {
           throw new Error('No AI Provider API key configured. Please set one up first.');
         }
@@ -240,28 +201,22 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
         });
 
         const data = await res.json();
-        
+
         if (!res.ok) {
           throw new Error(data.error || 'Failed to analyze code');
         }
 
-        const result = data.result;
-        
+        const newDiags = (data.diagnostics || []).map((d: any) => ({
+          ...d,
+          id: generateId(),
+          filePath: filePath
+        }));
+
         set((state) => ({
           codeIntel: {
             ...state.codeIntel,
             isAnalyzing: false,
-            selectedFileAnalysis: {
-              complexityScore: result.complexityScore,
-              linesOfCode: result.linesOfCode,
-              functionsCount: result.functionsCount,
-              grade: result.grade,
-            },
-            diagnostics: (result.diagnostics || []).map((d: any) => ({
-              ...d,
-              id: generateId(),
-              filePath: filePath
-            }))
+            diagnostics: newDiags,
           },
         }));
       } catch (err: any) {
@@ -273,6 +228,51 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
           }
         }));
       }
+    },
+    analyzeFolder: async (filePaths) => {
+      set((state) => ({
+        codeIntel: {
+          ...state.codeIntel,
+          isAnalyzing: true,
+          analysisError: null,
+          diagnostics: [],
+          folderProgress: { total: filePaths.length, done: 0 }
+        }
+      }));
+
+      const providers = useProviderStore.getState().providers;
+      const provider = providers.find((p: any) => p.isActive) || providers[0];
+
+      if (!provider || !provider.apiKey) {
+        set((state) => ({
+          codeIntel: { ...state.codeIntel, isAnalyzing: false, analysisError: 'No AI Provider API key configured.' }
+        }));
+        return;
+      }
+
+      const allDiagnostics: any[] = [];
+      for (let i = 0; i < filePaths.length; i++) {
+        const filePath = filePaths[i];
+        try {
+          const res = await fetch('/api/local/code/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: filePath, providerId: provider.id, apiKey: provider.apiKey })
+          });
+          const data = await res.json();
+          if (res.ok && data.diagnostics) {
+            const mapped = data.diagnostics.map((d: any) => ({ ...d, id: generateId(), filePath }));
+            allDiagnostics.push(...mapped);
+          }
+        } catch { /* skip failed files */ }
+        set((state) => ({
+          codeIntel: { ...state.codeIntel, folderProgress: { total: filePaths.length, done: i + 1 } }
+        }));
+      }
+
+      set((state) => ({
+        codeIntel: { ...state.codeIntel, isAnalyzing: false, diagnostics: allDiagnostics }
+      }));
     },
     applyQuickFix: async (diagnosticId, filePath) => {
       const diag = get().codeIntel.diagnostics.find((d: any) => d.id === diagnosticId);
@@ -322,54 +322,95 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
 
   // 3. Database State
   database: {
-    tables: [
-      {
-        tableName: 'users',
-        rowCount: 1250,
-        columns: [
-          { name: 'id', type: 'UUID', isPrimaryKey: true, isNullable: false },
-          { name: 'email', type: 'VARCHAR(255)', isPrimaryKey: false, isNullable: false },
-          { name: 'display_name', type: 'VARCHAR(100)', isPrimaryKey: false, isNullable: true },
-          { name: 'created_at', type: 'TIMESTAMP', isPrimaryKey: false, isNullable: false },
-        ],
-      },
-      {
-        tableName: 'workspace_settings',
-        rowCount: 4,
-        columns: [
-          { name: 'key', type: 'VARCHAR(100)', isPrimaryKey: true, isNullable: false },
-          { name: 'value', type: 'TEXT', isPrimaryKey: false, isNullable: false },
-          { name: 'updated_at', type: 'TIMESTAMP', isPrimaryKey: false, isNullable: false },
-        ],
-      },
-      {
-        tableName: 'prompt_history',
-        rowCount: 320,
-        columns: [
-          { name: 'id', type: 'UUID', isPrimaryKey: true, isNullable: false },
-          { name: 'template_id', type: 'VARCHAR(100)', isPrimaryKey: false, isNullable: false },
-          { name: 'compiled_content', type: 'TEXT', isPrimaryKey: false, isNullable: false },
-          { name: 'tokens_used', type: 'INT', isPrimaryKey: false, isNullable: false },
-        ],
-      },
-    ],
-    queryLogs: [
-      { id: 'q-1', query: 'SELECT * FROM users WHERE email LIKE "%@google.com";', executedAt: Date.now() - 60000, status: 'success', executionTimeMs: 14, resultSummary: 'Returned 4 rows' },
-      { id: 'q-2', query: 'INSERT INTO workspace_settings (key, value) VALUES ("ai.model", "gemini-pro");', executedAt: Date.now() - 120000, status: 'success', executionTimeMs: 4, resultSummary: 'Inserted 1 row' },
-    ],
-    executeQuery: (query) => {
+    tables: [],
+    queryLogs: [],
+    executeQuery: async (query) => {
+      const providers = useProviderStore.getState().providers;
+      const activeProvider = providers.find((p: any) => p.isActive) || providers[0];
       const isSelect = query.trim().toUpperCase().startsWith('SELECT');
+
+      let resultSummary = '';
+      let status: 'success' | 'error' = 'success';
+      const startTime = Date.now();
+
+      if (activeProvider?.apiKey && activeProvider.apiKey !== 'local') {
+        try {
+          const prompt = `You are a professional SQL database query planner and runner simulator. Execute the following query:
+"${query}"
+
+Simulate what a real SQL database would return. If the query has syntax errors, return a clear SQL error message.
+Otherwise, return a neat text representation of the result set (e.g. 3-4 rows of data in a clean ASCII table structure, or a success summary like "INSERT 0 1").
+Do not wrap your output in markdown code blocks (\`\`\`), do not write introductory text, do not write explanations. Return ONLY the direct database console output representation.`;
+
+          let apiUrl = '', model = '', authHeader = '';
+          if (activeProvider.id === 'groq') {
+            apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+            model = 'openai/gpt-oss-120b';
+            authHeader = `Bearer ${activeProvider.apiKey}`;
+          } else if (activeProvider.id === 'grok') {
+            apiUrl = 'https://api.x.ai/v1/chat/completions';
+            model = 'grok-beta';
+            authHeader = `Bearer ${activeProvider.apiKey}`;
+          } else if (activeProvider.id === 'huggingface' || activeProvider.id === 'hf') {
+            apiUrl = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct/v1/chat/completions';
+            model = 'meta-llama/Llama-3.3-70B-Instruct';
+            authHeader = `Bearer ${activeProvider.apiKey}`;
+          }
+
+          if (apiUrl) {
+            const res = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+              body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: 500, temperature: 0.1 })
+            });
+            if (res.ok) {
+              const data = await res.json() as any;
+              resultSummary = data.choices?.[0]?.message?.content?.trim() || '';
+            } else {
+              status = 'error';
+              resultSummary = `Database connection failed. AI Provider API returned status: ${res.status}`;
+            }
+          } else if (activeProvider.id === 'gemini') {
+            // Direct Gemini call
+            const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${activeProvider.apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.1, maxOutputTokens: 500 }
+              })
+            });
+            if (geminiRes.ok) {
+              const gData = await geminiRes.json() as any;
+              resultSummary = gData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+            } else {
+              status = 'error';
+              resultSummary = `Database connection failed. Gemini API returned status: ${geminiRes.status}`;
+            }
+          }
+        } catch (err: any) {
+          status = 'error';
+          resultSummary = `Database connection error: ${err.message}`;
+        }
+      }
+
+      if (!resultSummary) {
+        // Local baseline fallback if no API key is provided
+        status = query.toUpperCase().includes('ERROR') ? 'error' : 'success';
+        resultSummary = query.toUpperCase().includes('ERROR')
+          ? 'Error code 42P01: relation table does not exist.'
+          : isSelect
+          ? 'id | email | display_name | created_at\n----+-------+--------------+-----------\n(0 rows)'
+          : 'Query executed successfully. Affected 0 rows.';
+      }
+
       const logEntry: SqlQueryLog = {
         id: generateId(),
         query,
         executedAt: Date.now(),
-        status: query.includes('ERROR') ? 'error' : 'success',
-        executionTimeMs: Math.floor(3 + Math.random() * 20),
-        resultSummary: query.includes('ERROR')
-          ? 'Error code 42P01: relation table does not exist.'
-          : isSelect
-          ? `Returned ${Math.floor(1 + Math.random() * 50)} rows`
-          : 'Query executed successfully. Affected 1 row.',
+        status,
+        executionTimeMs: Date.now() - startTime || 5,
+        resultSummary,
       };
 
       set((state) => ({
@@ -388,35 +429,10 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
 
   // 4. API State
   api: {
-    endpoints: [
-      {
-        id: 'ep-health',
-        method: 'GET',
-        path: '/api/health',
-        description: 'Verify service kernel integration health checks',
-        headers: [{ key: 'Accept', value: 'application/json' }],
-        params: [],
-        mockResponse: JSON.stringify({ status: 'Healthy', dbConnection: 'connected', version: '1.0.0' }, null, 2),
-      },
-      {
-        id: 'ep-prompts',
-        method: 'POST',
-        path: '/api/prompts/compile',
-        description: 'Compiles template variables content models',
-        headers: [
-          { key: 'Content-Type', value: 'application/json' },
-          { key: 'Authorization', value: 'Bearer {{token}}' },
-        ],
-        params: [
-          { key: 'templateId', value: 'sql.explain', required: true },
-          { key: 'values', value: '{}', required: true },
-        ],
-        mockResponse: JSON.stringify({ compiledText: 'Explain query plan for SELECT * FROM users;', variablesCount: 1 }, null, 2),
-      },
-    ],
+    endpoints: [],
     envVariables: {
       baseUrl: 'http://localhost:5000',
-      token: 'mock-jwt-token-12345',
+      token: '',
     },
     activeEnv: 'Development',
     setEnvVariable: (key, value) => set((state) => ({
@@ -434,52 +450,77 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
         endpoints: [...state.api.endpoints, { ...endpoint, id: generateId() }],
       },
     })),
+    deleteEndpoint: (id) => set((state) => ({
+      api: {
+        ...state.api,
+        endpoints: state.api.endpoints.filter((ep) => ep.id !== id),
+      },
+    })),
+    updateEndpoint: (id, updated) => set((state) => ({
+      api: {
+        ...state.api,
+        endpoints: state.api.endpoints.map((ep) =>
+          ep.id === id ? { ...ep, ...updated } : ep
+        ),
+      },
+    })),
   },
 
   // 5. Documentation State
   doc: {
-    docs: [
-      {
-        id: 'doc-readme',
-        title: 'Project README',
-        type: 'readme',
-        content: '# Unify.AI Workspace\n\nDeveloper productivity suite built on modular kernel architectures.\n\n## Get Started\n\n```bash\nnpm install\nnpm run dev\n```',
-        updatedAt: Date.now(),
-      },
-      {
-        id: 'doc-api',
-        title: 'API Reference',
-        type: 'api',
-        content: '# API Integration Routes\n\nHTTP routes configured in ASP.NET Core platform kernel controllers.\n\n### GET /api/health\nReturns 200 OK.',
-        updatedAt: Date.now() - 50000,
-      },
-    ],
-    generateDoc: (type, context) => set((state) => {
-      const title = type === 'readme' ? 'README.md' : type === 'api' ? 'API_DOCS.md' : type === 'architecture' ? 'ARCHITECTURE.md' : 'CHANGELOG.md';
-      const exists = state.doc.docs.some((d) => d.type === type);
-      const content = `# Generated ${title}\n\nCompiled dynamically using system context filters.\n\n## Details\n- Type: ${type}\n- Context: ${context || 'General workspace context'}\n- Date: ${new Date().toLocaleDateString()}\n\n## Architecture Overview\nContains decoupled plugins bindings.`;
+    docs: [],
+    generateDoc: async (type, context) => {
+      // Show loading state
+      set((state) => ({ doc: { ...state.doc, docs: state.doc.docs.map(d => d.type === type ? { ...d, content: '⏳ Generating documentation with AI...' } : d) } }));
 
-      if (exists) {
-        return {
-          doc: {
-            ...state.doc,
-            docs: state.doc.docs.map((d) =>
-              d.type === type ? { ...d, content, updatedAt: Date.now() } : d
-            ),
-          },
-        };
+      const providers = useProviderStore.getState().providers;
+      const activeProvider = providers.find((p: any) => p.isActive) || providers[0];
+
+      const title = type === 'readme' ? 'README.md' : type === 'api' ? 'API_DOCS.md' : type === 'architecture' ? 'ARCHITECTURE.md' : 'CHANGELOG.md';
+
+      let content = `# ${title}\n\n*AI generation failed. Please check your provider configuration.*`;
+
+      if (activeProvider?.apiKey) {
+        try {
+          const prompt = `You are a technical documentation writer. Generate a professional, well-structured ${title} markdown document for a software project. Context: ${context || 'Unify.AI - a developer productivity suite with AI-powered features built with React, TypeScript, and a monorepo architecture.'}. Make it detailed, professional, and immediately useful. Use proper markdown with headings, code blocks, and tables where appropriate.`;
+
+          let apiUrl = '', model = '', authHeader = '';
+          if (activeProvider.id === 'groq') {
+            apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+            model = 'openai/gpt-oss-120b';
+            authHeader = `Bearer ${activeProvider.apiKey}`;
+          } else if (activeProvider.id === 'grok') {
+            apiUrl = 'https://api.x.ai/v1/chat/completions';
+            model = 'grok-beta';
+            authHeader = `Bearer ${activeProvider.apiKey}`;
+          } else if (activeProvider.id === 'huggingface' || activeProvider.id === 'hf') {
+            apiUrl = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct/v1/chat/completions';
+            model = 'meta-llama/Llama-3.3-70B-Instruct';
+            authHeader = `Bearer ${activeProvider.apiKey}`;
+          }
+
+          if (apiUrl) {
+            const res = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
+              body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: 1500 })
+            });
+            if (res.ok) {
+              const data = await res.json() as any;
+              content = data.choices?.[0]?.message?.content || content;
+            }
+          }
+        } catch { /* use fallback content */ }
       }
 
-      return {
-        doc: {
-          ...state.doc,
-          docs: [
-            ...state.doc.docs,
-            { id: generateId(), title, type, content, updatedAt: Date.now() },
-          ],
-        },
-      };
-    }),
+      set((state) => {
+        const exists = state.doc.docs.some((d) => d.type === type);
+        if (exists) {
+          return { doc: { ...state.doc, docs: state.doc.docs.map((d) => d.type === type ? { ...d, content, updatedAt: Date.now() } : d) } };
+        }
+        return { doc: { ...state.doc, docs: [...state.doc.docs, { id: generateId(), title, type, content, updatedAt: Date.now() }] } };
+      });
+    },
     updateDocContent: (id, content) => set((state) => ({
       doc: {
         ...state.doc,
@@ -487,6 +528,15 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
           d.id === id ? { ...d, content, updatedAt: Date.now() } : d
         ),
       },
+    })),
+    loadDocFileContent: (title: string, content: string) => set((state) => ({
+      doc: {
+        ...state.doc,
+        docs: [
+          ...state.doc.docs.filter(d => d.title !== title),
+          { id: generateId(), title, type: 'readme' as const, content, updatedAt: Date.now() }
+        ]
+      }
     })),
   },
 }));

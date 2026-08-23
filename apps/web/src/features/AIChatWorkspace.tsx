@@ -8,7 +8,18 @@ export function AIChatWorkspace() {
   const { providers, setDefaultProvider } = useProviderStore();
   const [input, setInput] = useState('');
   const [showContextView, setShowContextView] = useState(true);
+  
+  const workingProviders = providers.filter(p => p.apiKey && p.apiKey.trim() !== '');
   const activeProvider = providers.find(p => p.isActive) || providers[0];
+
+  useEffect(() => {
+    if (workingProviders.length > 0) {
+      const activeIsWorking = workingProviders.some(p => p.id === activeProvider?.id);
+      if (!activeIsWorking) {
+        setDefaultProvider(workingProviders[0].id);
+      }
+    }
+  }, [workingProviders, activeProvider, setDefaultProvider]);
   
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -18,10 +29,16 @@ export function AIChatWorkspace() {
   }, [messages, isTyping]);
 
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setDefaultProvider(e.target.value);
+    if (e.target.value) {
+      setDefaultProvider(e.target.value);
+    }
   };
 
   const handleSend = () => {
+    if (workingProviders.length === 0) {
+      alert('No active AI Provider API Keys configured. Please go to Settings (gear icon at bottom left) and add your keys first.');
+      return;
+    }
     if (!input.trim() || isTyping) return;
     
     const question = input;
@@ -95,13 +112,18 @@ export function AIChatWorkspace() {
           <Key size={14} className="text-[var(--color-text-secondary)]" />
           <span className="text-xs text-[var(--color-text-secondary)]">Active Provider:</span>
           <select 
-            value={activeProvider?.id || ''} 
+            value={workingProviders.length > 0 ? (activeProvider && workingProviders.some(p => p.id === activeProvider.id) ? activeProvider.id : workingProviders[0].id) : ''} 
             onChange={handleProviderChange}
-            className="flex-1 text-xs bg-[var(--color-bg-primary)] border border-[var(--color-border-default)] rounded px-2 py-1 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)] cursor-pointer"
+            disabled={workingProviders.length === 0}
+            className="flex-1 text-xs bg-[var(--color-bg-primary)] border border-[var(--color-border-default)] rounded px-2 py-1.5 text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-accent-primary)] cursor-pointer disabled:opacity-50"
           >
-            {providers.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
+            {workingProviders.length > 0 ? (
+              workingProviders.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))
+            ) : (
+              <option value="">⚠️ No active AI providers (Configure keys in Settings)</option>
+            )}
           </select>
         </div>
 
