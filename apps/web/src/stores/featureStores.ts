@@ -186,7 +186,7 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
         const providers = useProviderStore.getState().providers;
         const provider = providers.find((p: any) => p.isActive) || providers[0];
 
-        if (!provider || !provider.apiKey) {
+        if (!provider || !provider.configured) {
           throw new Error('No AI Provider API key configured. Please set one up first.');
         }
 
@@ -195,9 +195,9 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             path: filePath,
-            providerId: provider.id,
-            apiKey: provider.apiKey
-          })
+            providerId: provider.id
+          }),
+          credentials: 'include'
         });
 
         const data = await res.json();
@@ -243,7 +243,7 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
       const providers = useProviderStore.getState().providers;
       const provider = providers.find((p: any) => p.isActive) || providers[0];
 
-      if (!provider || !provider.apiKey) {
+      if (!provider || !provider.configured) {
         set((state) => ({
           codeIntel: { ...state.codeIntel, isAnalyzing: false, analysisError: 'No AI Provider API key configured.' }
         }));
@@ -257,7 +257,8 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
           const res = await fetch('/api/local/code/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: filePath, providerId: provider.id, apiKey: provider.apiKey })
+            body: JSON.stringify({ path: filePath, providerId: provider.id }),
+            credentials: 'include'
           });
           const data = await res.json();
           if (res.ok && data.diagnostics) {
@@ -333,7 +334,7 @@ export const useFeatureStore = create<FeatureStore>((set, get) => ({
       let status: 'success' | 'error' = 'success';
       const startTime = Date.now();
 
-      if (activeProvider?.apiKey && activeProvider.apiKey !== 'local') {
+      if (activeProvider?.configured && activeProvider.id !== 'ollama') {
         try {
           const prompt = `You are a professional SQL database query planner and runner simulator. Execute the following query:
 "${query}"
@@ -342,51 +343,25 @@ Simulate what a real SQL database would return. If the query has syntax errors, 
 Otherwise, return a neat text representation of the result set (e.g. 3-4 rows of data in a clean ASCII table structure, or a success summary like "INSERT 0 1").
 Do not wrap your output in markdown code blocks (\`\`\`), do not write introductory text, do not write explanations. Return ONLY the direct database console output representation.`;
 
-          let apiUrl = '', model = '', authHeader = '';
-          if (activeProvider.id === 'groq') {
-            apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-            model = 'openai/gpt-oss-120b';
-            authHeader = `Bearer ${activeProvider.apiKey}`;
-          } else if (activeProvider.id === 'grok') {
-            apiUrl = 'https://api.x.ai/v1/chat/completions';
-            model = 'grok-beta';
-            authHeader = `Bearer ${activeProvider.apiKey}`;
-          } else if (activeProvider.id === 'huggingface' || activeProvider.id === 'hf') {
-            apiUrl = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct/v1/chat/completions';
-            model = 'meta-llama/Llama-3.3-70B-Instruct';
-            authHeader = `Bearer ${activeProvider.apiKey}`;
-          }
+          const res = await fetch('/api/ai/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              providerId: activeProvider.id,
+              model: activeProvider.models[0] || 'default',
+              messages: [{ role: 'user', content: prompt }],
+              maxTokens: 500,
+              temperature: 0.1
+            }),
+            credentials: 'include'
+          });
 
-          if (apiUrl) {
-            const res = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-              body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: 500, temperature: 0.1 })
-            });
-            if (res.ok) {
-              const data = await res.json() as any;
-              resultSummary = data.choices?.[0]?.message?.content?.trim() || '';
-            } else {
-              status = 'error';
-              resultSummary = `Database connection failed. AI Provider API returned status: ${res.status}`;
-            }
-          } else if (activeProvider.id === 'gemini') {
-            // Direct Gemini call
-            const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${activeProvider.apiKey}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.1, maxOutputTokens: 500 }
-              })
-            });
-            if (geminiRes.ok) {
-              const gData = await geminiRes.json() as any;
-              resultSummary = gData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-            } else {
-              status = 'error';
-              resultSummary = `Database connection failed. Gemini API returned status: ${geminiRes.status}`;
-            }
+          if (res.ok) {
+            const data = await res.json();
+            resultSummary = data.content?.trim() || '';
+          } else {
+            status = 'error';
+            resultSummary = `Database connection failed. AI Proxy returned status: ${res.status}`;
           }
         } catch (err: any) {
           status = 'error';
@@ -480,35 +455,25 @@ Do not wrap your output in markdown code blocks (\`\`\`), do not write introduct
 
       let content = `# ${title}\n\n*AI generation failed. Please check your provider configuration.*`;
 
-      if (activeProvider?.apiKey) {
+      if (activeProvider?.configured && activeProvider.id !== 'ollama') {
         try {
           const prompt = `You are a technical documentation writer. Generate a professional, well-structured ${title} markdown document for a software project. Context: ${context || 'Unify.AI - a developer productivity suite with AI-powered features built with React, TypeScript, and a monorepo architecture.'}. Make it detailed, professional, and immediately useful. Use proper markdown with headings, code blocks, and tables where appropriate.`;
 
-          let apiUrl = '', model = '', authHeader = '';
-          if (activeProvider.id === 'groq') {
-            apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-            model = 'openai/gpt-oss-120b';
-            authHeader = `Bearer ${activeProvider.apiKey}`;
-          } else if (activeProvider.id === 'grok') {
-            apiUrl = 'https://api.x.ai/v1/chat/completions';
-            model = 'grok-beta';
-            authHeader = `Bearer ${activeProvider.apiKey}`;
-          } else if (activeProvider.id === 'huggingface' || activeProvider.id === 'hf') {
-            apiUrl = 'https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct/v1/chat/completions';
-            model = 'meta-llama/Llama-3.3-70B-Instruct';
-            authHeader = `Bearer ${activeProvider.apiKey}`;
-          }
+          const res = await fetch('/api/ai/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              providerId: activeProvider.id,
+              model: activeProvider.models[0] || 'default',
+              messages: [{ role: 'user', content: prompt }],
+              maxTokens: 1500
+            }),
+            credentials: 'include'
+          });
 
-          if (apiUrl) {
-            const res = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
-              body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: 1500 })
-            });
-            if (res.ok) {
-              const data = await res.json() as any;
-              content = data.choices?.[0]?.message?.content || content;
-            }
+          if (res.ok) {
+            const data = await res.json();
+            content = data.content || content;
           }
         } catch { /* use fallback content */ }
       }

@@ -15,59 +15,42 @@ export class GeminiProvider implements IAIProvider {
   async sendMessage(request: AIRequest): Promise<AIResponse> {
     const startTime = Date.now();
     const model = request.model || this._defaultModel;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this._apiKey}`;
-
-    const contents = request.messages.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    }));
+    
+    // Fallback to absolute URL if running in Electron (where relative paths might fail)
+    const baseUrl = typeof window !== 'undefined' && window.location.protocol === 'file:' 
+      ? 'http://localhost:5167' 
+      : '';
+    const url = `${baseUrl}/api/ai/complete`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: request.temperature ?? 0.7,
-          maxOutputTokens: request.maxTokens ?? 2048,
-          topP: request.topP ?? 0.95
-        }
+        providerId: this.id,
+        model: model,
+        messages: request.messages,
+        maxTokens: request.maxTokens ?? 2048,
+        temperature: request.temperature ?? 0.7,
+        topP: request.topP ?? 0.95
       })
     });
 
     if (!response.ok) {
-      let errText = await response.text();
-      if (response.status === 404) {
-        try {
-          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this._apiKey}`);
-          const listData = await listRes.json();
-          const validModels = (listData.models || [])
-            .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
-            .map((m: any) => m.name.replace('models/', ''))
-            .join(', ');
-          errText += `\n\n[DIAGNOSTIC AUTOMATION] I queried Google's servers. The valid models for your specific API key are:\n${validModels}`;
-        } catch (e) {
-          errText += `\n\n(Failed to fetch available models)`;
-        }
-      }
-      throw new Error(`Gemini API Error: ${response.status} - ${errText}`);
+      const errText = await response.text();
+      throw new Error(`Gemini Proxy Error: ${response.status} - ${errText}`);
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     return {
       id: `gemini-${Date.now()}`,
-      content: text,
+      content: data.content || '',
       model: model,
       provider: this.name,
-      usage: {
-        promptTokens: data.usageMetadata?.promptTokenCount || 0,
-        completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: data.usageMetadata?.totalTokenCount || 0
-      },
+      usage: data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       finishReason: 'stop',
       latencyMs: Date.now() - startTime
     };

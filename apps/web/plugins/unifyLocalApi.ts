@@ -258,7 +258,6 @@ export function unifyLocalApiPlugin(): Plugin {
           // ── Code: Analyze ─────────────────────────────────────────────────
           if (pathname === '/api/local/code/analyze' && req.method === 'POST') {
             const targetPath = safeResolvePath(requireString(body.path, 'path'));
-            const apiKey = requireString(body.apiKey, 'apiKey', 256);
             const providerId = typeof body.providerId === 'string' ? body.providerId : 'openai';
 
             const content = await nodeFs.readFile(targetPath, 'utf-8');
@@ -286,82 +285,49 @@ Total lines: ${lines.length}
 ${content}
 \`\`\``;
 
-            const buildApiCall = async (apiUrl: string, headers: Record<string, string>, model: string) => {
-              return fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...headers },
-                body: JSON.stringify({
-                  model,
-                  messages: [{ role: 'user', content: prompt }],
-                  max_tokens: 2000,
-                  temperature: 0.1
-                })
-              });
-            };
-
-            let aiResponse;
-            if (providerId === 'groq') {
-              aiResponse = await buildApiCall(
-                'https://api.groq.com/openai/v1/chat/completions',
-                { 'Authorization': `Bearer ${apiKey}` },
-                'llama-3.3-70b-versatile'
-              );
-            } else if (providerId === 'gemini') {
-              const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                  generationConfig: { temperature: 0.1, maxOutputTokens: 2000 }
-                })
-              });
-              const gData = await geminiRes.json() as any;
-              const gText = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-              const cleaned = gText.replace(/^```json/m, '').replace(/```$/m, '').trim();
-              let diagnostics;
-              try { diagnostics = JSON.parse(cleaned); } catch { diagnostics = []; }
-              res.end(JSON.stringify({ diagnostics }));
-              return;
-            } else if (providerId === 'grok') {
-              aiResponse = await buildApiCall(
-                'https://api.x.ai/v1/chat/completions',
-                { 'Authorization': `Bearer ${apiKey}` },
-                'grok-beta'
-              );
-            } else if (providerId === 'huggingface' || providerId === 'hf') {
-              aiResponse = await buildApiCall(
-                'https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct/v1/chat/completions',
-                { 'Authorization': `Bearer ${apiKey}` },
-                'meta-llama/Llama-3.3-70B-Instruct'
-              );
-            } else {
-              aiResponse = await buildApiCall(
-                'https://api.openai.com/v1/chat/completions',
-                { 'Authorization': `Bearer ${apiKey}` },
-                'gpt-4o-mini'
-              );
-            }
-
-            if (!aiResponse.ok) {
-              const errText = await aiResponse.text();
-              res.statusCode = aiResponse.status;
-              res.end(JSON.stringify({ error: `AI API Error (${aiResponse.status}): ${errText}` }));
-              return;
-            }
-
-            const data = await aiResponse.json() as any;
-            let jsonString = data.choices?.[0]?.message?.content || '[]';
-            jsonString = jsonString.replace(/^```json/m, '').replace(/```$/m, '').trim();
-
-            let diagnostics;
+            const incomingCookie = req.headers['cookie'] ?? '';
+            
             try {
-              diagnostics = JSON.parse(jsonString);
-              if (!Array.isArray(diagnostics)) diagnostics = [];
-            } catch {
-              diagnostics = [];
-            }
+              const apiRes = await fetch('http://localhost:5167/api/ai/complete', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Cookie': incomingCookie
+                },
+                body: JSON.stringify({
+                  providerId,
+                  model: 'default', // handled by proxy or frontend provider config
+                  messages: [{ role: 'user', content: prompt }],
+                  maxTokens: 2000,
+                  temperature: 0.1
+                }),
+                credentials: 'include'
+              });
 
-            res.end(JSON.stringify({ diagnostics }));
+              if (!apiRes.ok) {
+                const errText = await apiRes.text();
+                res.statusCode = apiRes.status;
+                res.end(JSON.stringify({ error: `AI API Error (${apiRes.status}): ${errText}` }));
+                return;
+              }
+
+              const data = await apiRes.json() as any;
+              let jsonString = data.content || '[]';
+              jsonString = jsonString.replace(/^```json/m, '').replace(/```$/m, '').trim();
+
+              let diagnostics;
+              try {
+                diagnostics = JSON.parse(jsonString);
+                if (!Array.isArray(diagnostics)) diagnostics = [];
+              } catch {
+                diagnostics = [];
+              }
+
+              res.end(JSON.stringify({ diagnostics }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: `Proxy Error: ${err.message}` }));
+            }
             return;
           }
 

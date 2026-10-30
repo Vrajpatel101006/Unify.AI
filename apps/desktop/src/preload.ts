@@ -5,7 +5,7 @@
  * via contextBridge. Keep this surface area as small as possible.
  */
 
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('unifyDesktop', {
   platform: process.platform,
@@ -15,4 +15,6 @@ contextBridge.exposeInMainWorld('unifyDesktop', {
     chrome: process.versions.chrome,
     electron: process.versions.electron,
   },
+  login: (email: string, password?: string) => ipcRenderer.invoke('auth:login', email, password),
+  logout: () => ipcRenderer.invoke('auth:logout'),
 });

@@ -16,41 +16,42 @@ export class HuggingFaceProvider implements IAIProvider {
   async sendMessage(request: AIRequest): Promise<AIResponse> {
     const startTime = Date.now();
     const model = request.model || this._defaultModel;
-    const url = `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`;
+    
+    // Fallback to absolute URL if running in Electron
+    const baseUrl = typeof window !== 'undefined' && window.location.protocol === 'file:' 
+      ? 'http://localhost:5167' 
+      : '';
+    const url = `${baseUrl}/api/ai/complete`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this._apiKey}`,
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify({
-        model,
+        providerId: this.id,
+        model: model,
         messages: request.messages,
+        maxTokens: request.maxTokens ?? 1024,
         temperature: request.temperature ?? 0.7,
-        max_tokens: request.maxTokens ?? 1024,
-        top_p: request.topP ?? 0.95
+        topP: request.topP ?? 0.95
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`HuggingFace API Error: ${response.status} - ${errText}`);
+      throw new Error(`HuggingFace Proxy Error: ${response.status} - ${errText}`);
     }
 
     const data = await response.json();
-    const message = data.choices[0]?.message?.content || '';
 
     return {
-      id: data.id || `hf-${Date.now()}`,
-      content: message,
-      model: data.model || model,
+      id: `hf-${Date.now()}`,
+      content: data.content || '',
+      model: model,
       provider: this.name,
-      usage: {
-        promptTokens: data.usage?.prompt_tokens || 0,
-        completionTokens: data.usage?.completion_tokens || 0,
-        totalTokens: data.usage?.total_tokens || 0
-      },
+      usage: data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       finishReason: 'stop',
       latencyMs: Date.now() - startTime
     };

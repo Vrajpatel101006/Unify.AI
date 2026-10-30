@@ -1,15 +1,28 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { IGitService, GitStatus, GitCommit } from './types.ts';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/** Validates that a git remote URL uses an allowed scheme. Throws on anything else. */
+function validateGitUrl(url: string): void {
+  if (!/^(https?:\/\/|git@|ssh:\/\/)/.test(url)) {
+    throw new Error(
+      `[GitService] Rejected URL "${url}": only https://, git@, and ssh:// schemes are allowed.`
+    );
+  }
+}
 
 export class GitService implements IGitService {
   public async getCurrentBranch(repoPath: string): Promise<string | null> {
     try {
-      const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: repoPath });
+      const { stdout } = await execFileAsync(
+        'git',
+        ['rev-parse', '--abbrev-ref', 'HEAD'],
+        { cwd: repoPath }
+      );
       return stdout.trim();
-    } catch (err) {
+    } catch {
       // Not a git repository or git not installed
       return null;
     }
@@ -17,10 +30,14 @@ export class GitService implements IGitService {
 
   public async getStatus(repoPath: string): Promise<GitStatus | null> {
     try {
-      const { stdout } = await execAsync('git status --porcelain', { cwd: repoPath });
-      
+      const { stdout } = await execFileAsync(
+        'git',
+        ['status', '--porcelain'],
+        { cwd: repoPath }
+      );
+
       const lines = stdout.split('\n').filter(line => line.trim().length > 0);
-      
+
       const modifiedFiles: string[] = [];
       const untrackedFiles: string[] = [];
       const stagedFiles: string[] = [];
@@ -28,7 +45,7 @@ export class GitService implements IGitService {
       for (const line of lines) {
         const status = line.substring(0, 2);
         const file = line.substring(3).trim();
-        
+
         if (status === '??') {
           untrackedFiles.push(file);
         } else {
@@ -49,18 +66,21 @@ export class GitService implements IGitService {
         untrackedFiles,
         stagedFiles
       };
-    } catch (err) {
+    } catch {
       return null;
     }
   }
 
   public async getHistory(repoPath: string, limit: number = 10): Promise<GitCommit[]> {
     try {
-      // Custom format: %H|%s|%an|%ar
-      // hash|message|author|date
-      const { stdout } = await execAsync(`git log -n ${limit} --pretty=format:"%H|%s|%an|%ar"`, { cwd: repoPath });
+      // Custom format: %H|%s|%an|%ar  →  hash|message|author|date
+      const { stdout } = await execFileAsync(
+        'git',
+        ['log', `-n`, String(limit), '--pretty=format:%H|%s|%an|%ar'],
+        { cwd: repoPath }
+      );
       if (!stdout) return [];
-      
+
       return stdout.split('\n').filter(Boolean).map(line => {
         const [hash, message, author, date] = line.split('|');
         return {
@@ -70,15 +90,18 @@ export class GitService implements IGitService {
           date: date || ''
         };
       });
-    } catch (err) {
+    } catch {
       return [];
     }
   }
 
   public async getDiff(repoPath: string, stagedOnly: boolean = false): Promise<string> {
     try {
-      const cmd = stagedOnly ? 'git diff --cached' : 'git diff';
-      const { stdout } = await execAsync(cmd, { cwd: repoPath, maxBuffer: 1024 * 1024 * 10 }); // 10MB buffer for large diffs
+      const args = stagedOnly ? ['diff', '--cached'] : ['diff'];
+      const { stdout } = await execFileAsync('git', args, {
+        cwd: repoPath,
+        maxBuffer: 1024 * 1024 * 10 // 10 MB buffer for large diffs
+      });
       return stdout;
     } catch (err) {
       console.error('[GitService] Error getting diff:', err);
@@ -88,21 +111,24 @@ export class GitService implements IGitService {
 
   public async commit(repoPath: string, message: string, files: string[]): Promise<void> {
     if (files.length > 0) {
-      await execAsync(`git add ${files.map(f => `"${f}"`).join(' ')}`, { cwd: repoPath });
+      // Pass files as separate array elements after '--' to prevent any flag injection
+      await execFileAsync('git', ['add', '--', ...files], { cwd: repoPath });
     }
-    // Note: this assumes there are staged files to commit. If files[] is empty, it commits currently staged files.
-    await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: repoPath });
+    // message is passed as a single argv element — no shell, no interpolation
+    await execFileAsync('git', ['commit', '-m', message], { cwd: repoPath });
   }
 
   public async push(repoPath: string): Promise<void> {
-    await execAsync('git push', { cwd: repoPath });
+    await execFileAsync('git', ['push'], { cwd: repoPath });
   }
 
   public async pull(repoPath: string): Promise<void> {
-    await execAsync('git pull', { cwd: repoPath });
+    await execFileAsync('git', ['pull'], { cwd: repoPath });
   }
 
   public async clone(url: string, destPath: string): Promise<void> {
-    await execAsync(`git clone "${url}" "${destPath}"`);
+    validateGitUrl(url);
+    // url and destPath are passed as separate argv elements — no shell interpretation
+    await execFileAsync('git', ['clone', url, destPath]);
   }
 }
